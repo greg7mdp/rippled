@@ -223,7 +223,7 @@ public:
 
     bool
     isStopping() const;
-
+    
     /** @return The maximum number of ledgers stored in a shard
      */
     [[nodiscard]] std::uint32_t
@@ -366,8 +366,8 @@ private:
             std::function<void(std::shared_ptr<NodeObject> const&)>>>>
         read_;
 
-    std::atomic<bool> readStopping_ = false;
-    std::atomic<int> readThreads_ = 0;
+    bool isStopping_ = false;
+    std::unique_ptr<std::thread> thread_manager_;
 
     virtual std::shared_ptr<NodeObject>
     fetchNodeObject(

@@ -43,9 +43,9 @@ Database::Database(
     , earliestLedgerSeq_(
           get<std::uint32_t>(config, "earliest_seq", XRP_LEDGER_EARLIEST_SEQ))
     , earliestShardIndex_((earliestLedgerSeq_ - 1) / ledgersPerShard_)
-    , readThreads_(std::min(1, readThreads))
 {
-    assert(readThreads != 0);
+    int num_threads = std::max(1, readThreads);
+    assert(num_threads != 0);
 
     if (ledgersPerShard_ == 0 || ledgersPerShard_ % 256 != 0)
         Throw<std::runtime_error>("Invalid ledgers_per_shard");
@@ -53,66 +53,72 @@ Database::Database(
     if (earliestLedgerSeq_ < 1)
         Throw<std::runtime_error>("Invalid earliest_seq");
 
-    for (int i = 0; i != readThreads_.load(); ++i)
-    {
-        std::thread t(
-            [this](int i) {
-                beast::setCurrentThreadName(
-                    "db prefetch #" + std::to_string(i));
+    auto thread_body = [&](int i) {
+        beast::setCurrentThreadName("db prefetch #" + std::to_string(i));
 
-                decltype(read_) read;
+        decltype(read_) read;
 
-                while (!isStopping())
+        while (!isStopping_)
+        {
+            {
+                std::unique_lock<std::mutex> lock(readLock_);
+
+                if (isStopping_)  // check again after taking the lock
+                    break;
+
+                if (read_.empty())
+                    readCondVar_.wait(lock);
+
+                if (isStopping_)
+                    break;
+
+                // We extract up to 64 objects to minimize the overhead
+                // of acquiring the mutex.
+                for (int cnt = 0; !read_.empty() && cnt != 64; ++cnt)
+                    read.insert(read_.extract(read_.begin()));
+            }
+
+            for (auto it = read.begin(); it != read.end(); ++it)
+            {
+                assert(!it->second.empty());
+
+                auto const& hash = it->first;
+                auto const& data = std::move(it->second);
+                auto const seqn = data[0].first;
+
+                auto obj = fetchNodeObject(hash, seqn, FetchType::async);
+
+                // This could be further optimized: if there are
+                // multiple requests for sequence numbers mapping to
+                // multiple databases by sorting requests such that all
+                // indices mapping to the same database are grouped
+                // together and serviced by a single read.
+                for (auto const& req : data)
                 {
-                    {
-                        std::unique_lock<std::mutex> lock(readLock_);
-
-                        if (read_.empty())
-                            readCondVar_.wait(lock);
-
-                        if (isStopping())
-                            continue;
-
-                        // We extract up to 64 objects to minimize the overhead
-                        // of acquiring the mutex.
-                        for (int cnt = 0; !read_.empty() && cnt != 64; ++cnt)
-                            read.insert(read_.extract(read_.begin()));
-                    }
-
-                    for (auto it = read.begin(); it != read.end(); ++it)
-                    {
-                        assert(!it->second.empty());
-
-                        auto const& hash = it->first;
-                        auto const& data = std::move(it->second);
-                        auto const seqn = data[0].first;
-
-                        auto obj =
-                            fetchNodeObject(hash, seqn, FetchType::async);
-
-                        // This could be further optimized: if there are
-                        // multiple requests for sequence numbers mapping to
-                        // multiple databases by sorting requests such that all
-                        // indices mapping to the same database are grouped
-                        // together and serviced by a single read.
-                        for (auto const& req : data)
-                        {
-                            req.second(
-                                (seqn == req.first) || isSameDB(req.first, seqn)
-                                    ? obj
-                                    : fetchNodeObject(
-                                          hash, req.first, FetchType::async));
-                        }
-                    }
-
-                    read.clear();
+                    req.second(
+                        (seqn == req.first) || isSameDB(req.first, seqn)
+                            ? obj
+                            : fetchNodeObject(
+                                  hash, req.first, FetchType::async));
                 }
+            }
 
-                --readThreads_;
-            },
-            i);
-        t.detach();
-    }
+            read.clear();
+        }
+    };
+
+    auto thread_manager_body = [=]() {
+        std::vector<std::thread> threads;
+        threads.reserve(num_threads);
+
+        for (int i = 0; i != num_threads; ++i)
+            threads.emplace_back(thread_body, i);
+
+        for (int i = 0; i != num_threads; ++i)
+            threads[i].join();
+    };
+
+    thread_manager_ = std::make_unique<std::thread>(thread_manager_body);
 }
 
 Database::~Database()
@@ -129,7 +135,7 @@ Database::~Database()
 bool
 Database::isStopping() const
 {
-    return readStopping_.load(std::memory_order_relaxed);
+    return isStopping_;
 }
 
 std::uint32_t
@@ -148,15 +154,17 @@ Database::maxLedgers(std::uint32_t shardIndex) const noexcept
 void
 Database::stop()
 {
-    if (!readStopping_.exchange(true, std::memory_order_relaxed))
+    if (thread_manager_)
     {
-        std::lock_guard lock(readLock_);
-        read_.clear();
-        readCondVar_.notify_all();
+        isStopping_ = true;
+        {
+            std::lock_guard lock(readLock_);
+            read_.clear();
+            readCondVar_.notify_all();
+        }
+        thread_manager_->join();
+        thread_manager_.reset();
     }
-
-    while (readThreads_.load() != 0)
-        std::this_thread::yield();
 }
 
 void
@@ -293,7 +301,7 @@ Database::storeLedger(
 
     bool error = false;
     auto visit = [&](SHAMapTreeNode& node) {
-        if (!isStopping())
+        if (!isStopping_)
         {
             if (auto nodeObject = srcDB.fetchNodeObject(
                     node.getHash().as_uint256(), srcLedger.info().seq))
