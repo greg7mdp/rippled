@@ -37,7 +37,7 @@ namespace ripple {
 bool
 SHAMap::walkBranch(
     SHAMapTreeNode* node,
-    std::shared_ptr<SHAMapItem const> const& otherMapItem,
+    boost::intrusive_ptr<SHAMapItem const> const& otherMapItem,
     bool isFirstMap,
     Delta& differences,
     int& maxCount) const
@@ -73,11 +73,11 @@ SHAMap::walkBranch(
                 if (isFirstMap)
                     differences.insert(std::make_pair(
                         item->key(),
-                        DeltaRef(item, std::shared_ptr<SHAMapItem const>())));
+                        DeltaRef(item, nullptr /*boost::intrusive_ptr<SHAMapItem const>()*/)));
                 else
                     differences.insert(std::make_pair(
                         item->key(),
-                        DeltaRef(std::shared_ptr<SHAMapItem const>(), item)));
+                        DeltaRef(nullptr/*boost::intrusive_ptr<SHAMapItem const>()*/, item)));
 
                 if (--maxCount <= 0)
                     return false;
@@ -111,11 +111,11 @@ SHAMap::walkBranch(
         if (isFirstMap)  // this is first map, so other item is from second
             differences.insert(std::make_pair(
                 otherMapItem->key(),
-                DeltaRef(std::shared_ptr<SHAMapItem const>(), otherMapItem)));
+                DeltaRef(nullptr/*std::shared_ptr<SHAMapItem const>()*/, otherMapItem)));
         else
             differences.insert(std::make_pair(
                 otherMapItem->key(),
-                DeltaRef(otherMapItem, std::shared_ptr<SHAMapItem const>())));
+                DeltaRef(otherMapItem, nullptr/*std::shared_ptr<SHAMapItem const>()*/)));
 
         if (--maxCount <= 0)
             return false;
@@ -175,14 +175,14 @@ SHAMap::compare(SHAMap const& otherMap, Delta& differences, int maxCount) const
                     ours->peekItem()->key(),
                     DeltaRef(
                         ours->peekItem(),
-                        std::shared_ptr<SHAMapItem const>())));
+                        nullptr/*std::shared_ptr<SHAMapItem const>()*/)));
                 if (--maxCount <= 0)
                     return false;
 
                 differences.insert(std::make_pair(
                     other->peekItem()->key(),
                     DeltaRef(
-                        std::shared_ptr<SHAMapItem const>(),
+                        nullptr/*std::shared_ptr<SHAMapItem const>()*/,
                         other->peekItem())));
                 if (--maxCount <= 0)
                     return false;
@@ -217,7 +217,7 @@ SHAMap::compare(SHAMap const& otherMap, Delta& differences, int maxCount) const
                         SHAMapTreeNode* iNode = descendThrow(ours, i);
                         if (!walkBranch(
                                 iNode,
-                                std::shared_ptr<SHAMapItem const>(),
+                                nullptr/*std::shared_ptr<SHAMapItem const>()*/,
                                 true,
                                 differences,
                                 maxCount))
@@ -229,7 +229,7 @@ SHAMap::compare(SHAMap const& otherMap, Delta& differences, int maxCount) const
                         SHAMapTreeNode* iNode = otherMap.descendThrow(other, i);
                         if (!otherMap.walkBranch(
                                 iNode,
-                                std::shared_ptr<SHAMapItem const>(),
+                                nullptr/*std::shared_ptr<SHAMapItem const>()*/,
                                 false,
                                 differences,
                                 maxCount))

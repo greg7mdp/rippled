@@ -42,7 +42,7 @@ SHAMapTreeNode::makeTransaction(
     SHAMapHash const& hash,
     bool hashValid)
 {
-    auto item = std::make_shared<SHAMapItem const>(
+    auto item = make_shamapitem(
         sha512Half(HashPrefix::transactionID, data), data);
 
     if (hashValid)
@@ -71,7 +71,7 @@ SHAMapTreeNode::makeTransactionWithMeta(
 
     s.chop(tag.bytes);
 
-    auto item = std::make_shared<SHAMapItem const>(tag, s.slice());
+    auto item = make_shamapitem(tag, s.slice());
 
     if (hashValid)
         return std::make_shared<SHAMapTxPlusMetaLeafNode>(
@@ -103,7 +103,7 @@ SHAMapTreeNode::makeAccountState(
     if (tag.isZero())
         Throw<std::runtime_error>("Invalid AS node");
 
-    auto item = std::make_shared<SHAMapItem const>(tag, s.slice());
+    auto item = make_shamapitem(tag, s.slice());
 
     if (hashValid)
         return std::make_shared<SHAMapAccountStateLeafNode>(
