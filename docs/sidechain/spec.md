@@ -109,22 +109,23 @@ are:
    be retrieved from the transaction metadata on a validated ledger.
    
 2) On the source chain, an initiating transaction is sent from a source account.
-   This transaction will include the sidechain, "cross chain sequence number"
-   from step (1), a signature reward amount, in XRP, and an optional destination
-   account on the destination chain. Rewards amounts much match the amount
-   specified by the sidechain ledger object. Both the asset being transferred
-   cross-chain and the reward amount will be transferred from the source account
-   to the door account. Collecting rewards is discussed below. This transaction
-   will create a `XChainTransferRewardState` ledger object for this transaction.
-   It will be owned by the door account.
+   This transaction will include the amount to transfer, sidechain, "cross chain
+   sequence number" from step (1), a signature reward amount, in XRP, and an
+   optional destination account on the destination chain. Rewards amounts much
+   match the amount specified by the sidechain ledger object. Both the asset
+   being transferred cross-chain and the reward amount will be transferred from
+   the source account to the door account. Collecting rewards is discussed
+   below. This transaction will create a `XChainTransferRewardState` ledger
+   object for this transaction. It will be owned by the door account.
    
 3) When a witness servers sees a new cross-chain transaction, it submits a
    transaction on the destination chain that adds a signature witnessing the
    cross-chain transaction. This will include the amount being transferred
-   cross-chain, the reward amount, the account to send the reward to, and the
-   optional destination account. These signatures will be accumulated on the
-   cross-chain sequence number object. The keys used in these signatures must
-   match the keys on the multi-signers list on the door account.
+   cross-chain, the reward amount, the account to send the reward to, the
+   sidechain spec, the sending account, and the optional destination account.
+   These signatures will be accumulated on the cross-chain sequence number
+   object. The keys used in these signatures must match the keys on the
+   multi-signers list on the door account.
 
 4) When a quorum of signatures have been collected, the cross-chain funds can be
    claimed on the destination chain. If a destination account is specified, the
@@ -154,15 +155,16 @@ are:
    account.
 
 6) When a witness server sees funds being claimed on the destination chain, it
-   submits a transaction on the source chain allowing the signature rewards to
-   be collected. It collects these signatures on the `XChainTransferRewardState`
-   created in step (2). The number of rewards will always equal the number of
-   signatures needed to reach a quorum. When a quorum of these signatures have
-   been collected, the rewards will be transferred to the destination addresses
-   specified in the signatures. (Note: the witness servers specify where the rewards
-   for its signature goes, this is not specified on the sidechain ledger
-   object). The `XChainTransferRewardState` is destroyed when the reward pool is
-   distributed.
+   submits a `XChainAddWitness` transaction on the source chain adding its
+   signature to allow the signature rewards to be collected. It collects these
+   signatures on the `XChainTransferRewardState` created in step (2). When a
+   quorum of signature is collected, the reward pool is distrubuted to the
+   signature providers on the destination chain as well as the signature
+   providers authorizing the signer's reward. The rewards will be transferred to
+   the destination addresses specified in the signatures. (Note: the witness
+   servers specify where the rewards for its signature goes, this is not
+   specified on the sidechain ledger object). The `XChainTransferRewardState` is
+   destroyed when the reward pool is distributed.
    
 The cross-chain transfer is now complete. Note that the transactions sent by the
 witness servers that add their signatures may send the signatures in a batch.
@@ -327,7 +329,7 @@ deletable, the transaction cannot be replayed.
 
 Since the `SidechainXChainTransfer` can contain an optional destination account
 on the destination chain, and the funds will move when the destination chain
-collects enough signatures, on attack would be for an account to watch for a
+collects enough signatures, one attack would be for an account to watch for a
 `SidechainXChainTransfer` to be sent and then send their own
 `SidechainXChainTransfer` for a smaller amount. This attack doesn't steal funds,
 but it does result in the original sender losing their funds. To prevent this,
@@ -697,7 +699,7 @@ sent from another account the funds will be lost.
             {sfSidechain, soeREQUIRED},
             {sfXChainSequence, soeREQUIRED},
             {sfAmount, soeREQUIRED},
-            {sfOtherChainDestination, soeOptional},
+            {sfOtherChainDestination, soeOPTIONAL},
             {sfSignaturesReward, soeREQUIRED},
         },
         commonFields);
@@ -897,7 +899,6 @@ receive is the last to be sent for this ledger.
 
 ### Other RPC Commands 
 
-* Given a transaction id, get the sequence number
 * Given a sidechain description, get the sidechain ledger object
 
 ## Alternate designs
@@ -926,20 +927,3 @@ collected on the source chain. A design was considered where the funds were
 distributed on the destination chain in the form of a token that could be
 redeemed on the source chain for reward funds held in trust. However, the
 current scheme seems much simpler.
-
-## Tasks (This is not part of the spec - these are just notes for tasks as I write this doc)
-
-* Decide on nomenclature
-* Create undeleteable accounts
-* Modify sidechain object to contain the reward amounts
-* Modify sidechain object to track rewards in trust and assets in trust
-* RPC command to query sidechain object params
-* RPC command to subscribe to transactions that change the sidechain object.
-* Fix bug where sidechain is not present in RPC command results
-* Add a reward to the initiating transaction
-* Add an optional side-chain destination on the initiating transaction
-* Collect signatures on the cross-chain sequence number.
-* Automatically move funds when quorum threshold is reached.
-* Batch send the signatures
-* Add minimum account create amount to sidechain object (optional)
-* Add SidechainModify transaction
