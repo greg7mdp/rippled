@@ -72,12 +72,6 @@ if ("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
     "directory from ${CMAKE_CURRENT_SOURCE_DIR} and try building in a separate directory.")
 endif ()
 
-if ("${CMAKE_GENERATOR}" MATCHES "Visual Studio" AND
-    NOT ("${CMAKE_GENERATOR}" MATCHES .*Win64.*))
-  message (FATAL_ERROR
-    "Visual Studio 32-bit build is not supported. Use -G\"${CMAKE_GENERATOR} Win64\"")
-endif ()
-
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
   message (FATAL_ERROR "Rippled requires a 64 bit target architecture.\n"
     "The most likely cause of this warning is trying to build rippled with a 32-bit OS.")
