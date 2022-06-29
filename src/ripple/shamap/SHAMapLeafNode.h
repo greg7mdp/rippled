@@ -32,11 +32,14 @@ namespace ripple {
 class SHAMapLeafNode : public SHAMapTreeNode
 {
 protected:
-    std::shared_ptr<SHAMapItem const> item_;
+    shamapitem_ptr item_;
 
-    SHAMapLeafNode(std::shared_ptr<SHAMapItem const> item, std::uint32_t cowid);
     SHAMapLeafNode(
-        std::shared_ptr<SHAMapItem const> item,
+        shamapitem_ptr item,
+        std::uint32_t cowid);
+
+    SHAMapLeafNode(
+        shamapitem_ptr item,
         std::uint32_t cowid,
         SHAMapHash const& hash);
 
@@ -61,7 +64,7 @@ public:
     invariants(bool is_root = false) const final override;
 
 public:
-    std::shared_ptr<SHAMapItem const> const&
+    shamapitem_ptr const&
     peekItem() const;
 
     /** Set the item that this node points to and update the node's hash.
@@ -71,7 +74,7 @@ public:
                 hash was unchanged); true otherwise.
      */
     bool
-    setItem(std::shared_ptr<SHAMapItem const> i);
+    setItem(shamapitem_ptr i);
 
     std::string
     getString(SHAMapNodeID const&) const final override;

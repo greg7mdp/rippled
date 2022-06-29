@@ -25,7 +25,7 @@ namespace ripple {
 
 void
 SHAMap::visitLeaves(
-    std::function<void(std::shared_ptr<SHAMapItem const> const& item)> const&
+    std::function<void(shamapitem_ptr const& item)> const&
         leafFunction) const
 {
     visitNodes([&leafFunction](SHAMapTreeNode& node) {

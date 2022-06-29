@@ -26,11 +26,12 @@
 #include <ripple/shamap/SHAMapTxPlusMetaLeafNode.h>
 
 namespace ripple {
+using shamapitem_ptr = boost::intrusive_ptr<SHAMapItem const>;
 
 [[nodiscard]] std::shared_ptr<SHAMapLeafNode>
 makeTypedLeaf(
     SHAMapNodeType type,
-    std::shared_ptr<SHAMapItem const> item,
+    shamapitem_ptr item,
     std::uint32_t owner)
 {
     if (type == SHAMapNodeType::tnTRANSACTION_NM)
@@ -501,9 +502,9 @@ SHAMap::firstBelow(
 
     return belowHelper(node, stack, branch, {init, cmp, incr});
 }
-static const std::shared_ptr<SHAMapItem const> no_item;
+static const shamapitem_ptr no_item;
 
-std::shared_ptr<SHAMapItem const> const&
+shamapitem_ptr const&
 SHAMap::onlyBelow(SHAMapTreeNode* node) const
 {
     // If there is only one item below this node, return it
@@ -582,7 +583,7 @@ SHAMap::peekNextItem(uint256 const& id, SharedPtrNodeStack& stack) const
     return nullptr;
 }
 
-std::shared_ptr<SHAMapItem const> const&
+shamapitem_ptr const&
 SHAMap::peekItem(uint256 const& id) const
 {
     SHAMapLeafNode* leaf = findKey(id);
@@ -593,7 +594,7 @@ SHAMap::peekItem(uint256 const& id) const
     return leaf->peekItem();
 }
 
-std::shared_ptr<SHAMapItem const> const&
+shamapitem_ptr const&
 SHAMap::peekItem(uint256 const& id, SHAMapHash& hash) const
 {
     SHAMapLeafNode* leaf = findKey(id);
@@ -765,7 +766,9 @@ SHAMap::delItem(uint256 const& id)
 }
 
 bool
-SHAMap::addGiveItem(SHAMapNodeType type, std::shared_ptr<SHAMapItem const> item)
+SHAMap::addGiveItem(
+    SHAMapNodeType type,
+    shamapitem_ptr item)
 {
     assert(state_ != SHAMapState::Immutable);
     assert(type != SHAMapNodeType::tnINNER);
@@ -803,7 +806,7 @@ SHAMap::addGiveItem(SHAMapNodeType type, std::shared_ptr<SHAMapItem const> item)
         // this is a leaf node that has to be made an inner node holding two
         // items
         auto leaf = std::static_pointer_cast<SHAMapLeafNode>(node);
-        std::shared_ptr<SHAMapItem const> otherItem = leaf->peekItem();
+        auto otherItem = leaf->peekItem();
         assert(otherItem && (tag != otherItem->key()));
 
         node = std::make_shared<SHAMapInnerNode>(node->cowid());
@@ -834,9 +837,11 @@ SHAMap::addGiveItem(SHAMapNodeType type, std::shared_ptr<SHAMapItem const> item)
 }
 
 bool
-SHAMap::addItem(SHAMapNodeType type, SHAMapItem&& i)
+SHAMap::addItem(
+    SHAMapNodeType type,
+    shamapitem_ptr item)
 {
-    return addGiveItem(type, std::make_shared<SHAMapItem const>(std::move(i)));
+    return addGiveItem(type, std::move(item));
 }
 
 SHAMapHash
@@ -854,7 +859,7 @@ SHAMap::getHash() const
 bool
 SHAMap::updateGiveItem(
     SHAMapNodeType type,
-    std::shared_ptr<SHAMapItem const> item)
+    shamapitem_ptr item)
 {
     // can't change the tag but can change the hash
     uint256 tag = item->key();
@@ -879,13 +884,13 @@ SHAMap::updateGiveItem(
 
     if (node->getType() != type)
     {
-        JLOG(journal_.fatal()) << "SHAMap::setItem: cross-type change!";
+        JLOG(journal_.fatal()) << "SHAMap::updateGiveItem: cross-type change!";
         return false;
     }
 
     node = unshareNode(std::move(node), nodeID);
 
-    if (node->setItem(std::move(item)))
+    if (node->setItem(item))
         dirtyUp(stack, tag, node);
 
     return true;
