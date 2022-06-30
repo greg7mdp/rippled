@@ -339,6 +339,7 @@ extern uint256 const fixNFTokenNegOffer;
 extern uint256 const featureNonFungibleTokensV1_1;
 extern uint256 const fixTrustLinesToSelf;
 extern uint256 const featureSidechains;
+extern uint256 const featureXChainBridge;
 
 }  // namespace ripple
 

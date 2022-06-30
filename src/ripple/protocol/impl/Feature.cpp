@@ -449,6 +449,7 @@ REGISTER_FIX    (fixNFTokenNegOffer,            Supported::yes, DefaultVote::no)
 REGISTER_FEATURE(NonFungibleTokensV1_1,         Supported::yes, DefaultVote::no);
 REGISTER_FIX    (fixTrustLinesToSelf,           Supported::yes, DefaultVote::no);
 REGISTER_FEATURE(Sidechains,                    Supported::no,  DefaultVote::no);
+REGISTER_FEATURE(XChainBridge,                  Supported::no,  DefaultVote::no);
 
 // The following amendments have been active for at least two years. Their
 // pre-amendment code has been removed and the identifiers are deprecated.
