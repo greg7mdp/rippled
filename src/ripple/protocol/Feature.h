@@ -334,7 +334,7 @@ extern uint256 const fixSTAmountCanonicalize;
 extern uint256 const fixRmSmallIncreasedQOffers;
 extern uint256 const featureCheckCashMakesTrustLine;
 extern uint256 const featureNonFungibleTokensV1;
-extern uint256 const featureSidechains;
+extern uint256 const featureXChainBridge;
 
 }  // namespace ripple
 
