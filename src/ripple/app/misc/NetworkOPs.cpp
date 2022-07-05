@@ -620,12 +620,14 @@ private:
     void
     pubValidatedTransaction(
         std::shared_ptr<ReadView const> const& ledger,
-        AcceptedLedgerTx const& transaction);
+        AcceptedLedgerTx const& transaction,
+        bool last);
 
     void
     pubAccountTransaction(
         std::shared_ptr<ReadView const> const& ledger,
-        AcceptedLedgerTx const& transaction);
+        AcceptedLedgerTx const& transaction,
+        bool last);
 
     void
     pubProposedAccountTransaction(
@@ -2925,7 +2927,8 @@ NetworkOPsImp::pubLedger(std::shared_ptr<ReadView const> const& lpAccepted)
     for (auto const& accTx : *alpAccepted)
     {
         JLOG(m_journal.trace()) << "pubAccepted: " << accTx->getJson();
-        pubValidatedTransaction(lpAccepted, *accTx);
+        pubValidatedTransaction(
+            lpAccepted, *accTx, accTx == *(--alpAccepted->end()));
     }
 }
 
@@ -3032,7 +3035,8 @@ NetworkOPsImp::transJson(
 void
 NetworkOPsImp::pubValidatedTransaction(
     std::shared_ptr<ReadView const> const& ledger,
-    const AcceptedLedgerTx& transaction)
+    const AcceptedLedgerTx& transaction,
+    bool last)
 {
     auto const& stTxn = transaction.getTxn();
 
@@ -3081,13 +3085,14 @@ NetworkOPsImp::pubValidatedTransaction(
     if (transaction.getResult() == tesSUCCESS)
         app_.getOrderBookDB().processTxn(ledger, transaction, jvObj);
 
-    pubAccountTransaction(ledger, transaction);
+    pubAccountTransaction(ledger, transaction, last);
 }
 
 void
 NetworkOPsImp::pubAccountTransaction(
     std::shared_ptr<ReadView const> const& ledger,
-    AcceptedLedgerTx const& transaction)
+    AcceptedLedgerTx const& transaction,
+    bool last)
 {
     hash_set<InfoSub::pointer> notify;
     int iProposed = 0;
@@ -3192,6 +3197,9 @@ NetworkOPsImp::pubAccountTransaction(
             RPC::insertDeliveredAmount(jvObj[jss::meta], *ledger, stTxn, meta);
         }
 
+        if (last)
+            jvObj[jss::account_history_ledger_boundary] = true;
+        
         for (InfoSub::ref isrListener : notify)
             isrListener->send(jvObj, true);
 
@@ -3591,8 +3599,11 @@ NetworkOPsImp::addAccountHistoryJob(SubAccountHistoryInfoWeak subInfo)
 
                     auto const& txns = dbResult->first;
                     marker = dbResult->second;
-                    for (auto const& [tx, meta] : txns)
+                    size_t num_txns = txns.size();
+                    for (size_t i = 0; i < num_txns; ++i)
                     {
+                        auto const& [tx, meta] = txns[i];
+
                         if (!tx || !meta)
                         {
                             JLOG(m_journal.debug())
@@ -3627,6 +3638,11 @@ NetworkOPsImp::addAccountHistoryJob(SubAccountHistoryInfoWeak subInfo)
                             *stTxn, meta->getResultTER(), true, curTxLedger);
                         jvTx[jss::meta] = meta->getJson(JsonOptions::none);
                         jvTx[jss::account_history_tx_index] = txHistoryIndex--;
+
+                        if (i + 1 == num_txns ||
+                            txns[i + 1].first->getLedger() != tx->getLedger())
+                            jvTx[jss::account_history_ledger_boundary] = true;
+
                         RPC::insertDeliveredAmount(
                             jvTx[jss::meta], *curTxLedger, stTxn, *meta);
                         if (isFirstTx(tx, meta))
