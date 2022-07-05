@@ -25,6 +25,7 @@
 #include <ripple/protocol/ErrorCodes.h>
 #include <ripple/protocol/Indexes.h>
 #include <ripple/protocol/jss.h>
+#include <ripple/protocol/STSidechain.h>
 #include <ripple/rpc/Context.h>
 #include <ripple/rpc/GRPCHandlers.h>
 #include <ripple/rpc/impl/GRPCHelpers.h>
@@ -343,6 +344,52 @@ doLedgerEntry(RPC::JsonContext& context)
         else
         {
             jvResult[jss::error] = "malformedRequest";
+        }
+    }
+    else if (context.params.isMember(jss::sidechain))
+    {
+        expectedType = ltSIDECHAIN;
+        auto& bridge = context.params[jss::sidechain];
+        if (bridge.isString())
+        {
+            // we accept a node id as specifier of a sidechain
+            if (!uNodeIndex.parseHex(bridge.asString()))
+            {
+                uNodeIndex = beast::zero;
+                jvResult[jss::error] = "malformedRequest";
+            }
+        }
+        else if (!bridge.isObject() ||
+                 !bridge.isMember(jss::dst_chain_door) ||
+                 !bridge.isMember(jss::dst_chain_issue) ||
+                 !bridge.isMember(jss::src_chain_door) ||
+                 !bridge.isMember(jss::src_chain_issue))
+        {
+            jvResult[jss::error] = "malformedRequest";
+        }
+        else
+        {
+            // if not specified with a node id, a bridge is specified by
+            // four strings (src_chain_door, src_chain_issue,
+            // dst_chain_door, dst_chain_issue)
+            auto lcd = parseBase58<AccountID>(bridge[jss::src_chain_door].asString());
+            auto icd = parseBase58<AccountID>(bridge[jss::dst_chain_door].asString());
+            Issue lci, ici;
+            bool valid = lcd && icd;
+            if (valid)
+            {
+                try {
+                    lci = issueFromJson(bridge[jss::src_chain_issue]);
+                    ici = issueFromJson(bridge[jss::dst_chain_issue]);
+                }
+                catch (std::runtime_error const& ex)
+                {
+                    valid = false;
+                }
+            }
+            STSidechain sidechain_spec(*lcd, lci, *icd, ici);
+            Keylet keylet = keylet::sidechain(sidechain_spec);
+            uNodeIndex = keylet.key;
         }
     }
     else

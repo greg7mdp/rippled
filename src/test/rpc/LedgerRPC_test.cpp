@@ -23,7 +23,11 @@
 #include <ripple/beast/unit_test.h>
 #include <ripple/protocol/ErrorCodes.h>
 #include <ripple/protocol/jss.h>
+#include <ripple/protocol/STSidechain.h>
 #include <test/jtx.h>
+#include <test/jtx/attester.h>
+#include <test/jtx/multisign.h>
+#include <test/jtx/sidechain.h>
 
 namespace ripple {
 
@@ -365,6 +369,83 @@ class LedgerRPC_test : public beast::unit_test::suite
             Json::Value const jrr = env.rpc(
                 "json", "ledger_entry", to_string(jvParams))[jss::result];
             checkErrorValue(jrr, "entryNotFound", "");
+        }
+    }
+
+    void
+    testLedgerEntrySidechain()
+    {
+        testcase("ledger_entry Request Sidechain");
+        using namespace test::jtx;
+        auto const features =
+            supported_amendments() | FeatureBitset{featureSidechains};
+        Env env{*this, features};
+        Account const locking_door_account{"locking_door_account"};
+        Account const issuing_door_account{"issuing_door_account"};
+        auto locking_funds{XRP(10001)};
+        auto issuing_funds{XRP(10001)};
+        env.fund(locking_funds, locking_door_account);
+        env.fund(issuing_funds, issuing_door_account);
+        
+        std::vector<signer> const signers = [] {
+            constexpr int numSigners = 5;
+            std::vector<signer> result;
+            result.reserve(numSigners);
+            for (int i = 0; i < numSigners; ++i)
+            {
+                using namespace std::literals;
+                result.emplace_back("signer_"s + std::to_string(i));
+            }
+            return result;
+        }();
+        
+        std::uint32_t const quorum = signers.size() - 1;
+        Json::Value sidechain_def =
+            sidechain(locking_door_account,
+                      xrpIssue(), issuing_door_account, xrpIssue());
+        
+        Json::Value sidechain_json = sidechain_create(
+                locking_door_account,
+                sidechain_def,
+                quorum,
+                signers);
+        env(sidechain_json);
+        env.close();
+
+        {
+            // request the sidechain via RPC
+            Json::Value jvParams;
+            jvParams[jss::sidechain] = sidechain_def;
+            Json::Value const jrr = env.rpc(
+                "json", "ledger_entry", to_string(jvParams))[jss::result];
+            
+            BEAST_EXPECT(jrr.isMember(jss::node));
+            auto r = jrr[jss::node];
+            std::cout << to_string(r) << '\n';
+            
+            BEAST_EXPECT(r.isMember(jss::Account));
+            BEAST_EXPECT(r[jss::Account] == locking_door_account.human());
+            
+            BEAST_EXPECT(r.isMember(jss::Flags));
+            
+            BEAST_EXPECT(r.isMember(sfLedgerEntryType.jsonName));
+            BEAST_EXPECT(r[sfLedgerEntryType.jsonName] == jss::Sidechain);
+            
+            BEAST_EXPECT(r.isMember("SignerEntries"));
+            auto s = r["SignerEntries"];
+            BEAST_EXPECT(s.isArray() && s.size() == signers.size());
+            for (size_t i = 0; i < s.size(); ++i)
+            {
+                BEAST_EXPECT(s[i]["SignerWeight"] == 1);
+            }
+            
+            BEAST_EXPECT(r.isMember("SignerQuorum"));
+            BEAST_EXPECT(r["SignerQuorum"] == quorum);
+            
+            BEAST_EXPECT(r.isMember("XChainSequence"));
+            BEAST_EXPECT(r["XChainSequence"] == 0); // no tx submitted yet
+            
+            BEAST_EXPECT(r.isMember(jss::index));
         }
     }
 
@@ -1729,6 +1810,7 @@ public:
         testLedgerFullNonAdmin();
         testLedgerAccounts();
         testLedgerEntryAccountRoot();
+        testLedgerEntrySidechain();
         testLedgerEntryCheck();
         testLedgerEntryDepositPreauth();
         testLedgerEntryDirectory();
