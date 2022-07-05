@@ -29,8 +29,7 @@ Cross-chain transfer: A transaction that moves assets from the mainchain to the
 sidechain, or returns those assets from the sidechain back to the mainchain.
 
 Cross-chain sequence number: A ledger object used to prove ownership of the
-funds moved in a cross-chain transfer. It also contains the amount of funds 
-attested to by the witness servers, but not yet paid out on the destination chain.
+funds moved in a cross-chain transfer.
 
 Account-create ordering number: A counter on the door accounts used to order the
 account create transactions.
@@ -119,9 +118,7 @@ are:
 2) On the source chain, an initiating transaction is sent from a source account.
    This transaction will include the amount to transfer, sidechain spec, "cross
    chain sequence number" from step (1), and an optional destination account on
-   the destination chain (specifing this destination account means the full balance 
-   of the transfer will be sent to this account when a quorum of witness attestations
-   is reached). The asset being transferred cross-chain will be
+   the destination chain. The asset being transferred cross-chain will be
    transferred from the source account to the door account.
    
 3) When a witness servers sees a new cross-chain transaction, it submits a
@@ -150,26 +147,20 @@ are:
    
 5) On the destination chain, the the owner of the "cross chain sequence number"
    (see 1) can submit a "cross chain claim" transaction that includes the "cross
-   chain sequence number", the sidechain spec, and a destination, and an amount. The "cross
+   chain sequence number", the sidechain spec, and a destination. The "cross
    chain sequence number" object must exist and must have already collected
-   enough signatures from the witness servers for this to succeed, and the anount 
-   must be less or equal to the remaining funds available on the x-chain number. On success, a
-   payment is made from the door account to the specified destination for the 
-   specified amount, remaining funds available on the x-chain seq number is decremented 
-   by amount,  signature rewards are distributed (see step 6) if still available 
-   for this x-chain seq number, and the "cross chain sequence number"
-   is deleted if remaining funds is 0. Funds from a "cross chain claim" transaction 
-   can only be transfered once, as the
-   "cross chain sequence number" for that transaction can only be created once and 
-   controls (via its remaining balance) the disbursement of the funds.
+   enough signatures from the witness servers for this to succeed. On success, a
+   payment is made from the door account to the specified destination, signature
+   rewards are distributed (see step 6), and the "cross chain sequence number"
+   is deleted. A "cross chain claim" transaction can only succeed once, as the
+   "cross chain sequence number" for that transaction can only be created once.
    In case of error, the funds can be sent to an alternate account and
    eventually returned to the initiating account. Note that this transaction is
    only used if the optional destination account is not specified in step (2) or
    there is an error when sending funds to that destination account.
    
-6) When funds are first successfully claimed on the destination chain (even 
-   if it is a partial claim), the reward pool
-   is distributed to the signature providers. The rewards will be transferred to
+6) When funds are successfully claimed on the destination chain, the reward pool
+   is distrubuted to the signature providers. The rewards will be transferred to
    the destination addresses specified in the messages the witnesses sign. These
    accounts are on the destination chain. (Note: the witness servers specify
    where the rewards for its signature goes, this is not specified on the
