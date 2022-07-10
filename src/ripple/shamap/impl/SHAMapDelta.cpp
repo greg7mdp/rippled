@@ -37,7 +37,7 @@ namespace ripple {
 bool
 SHAMap::walkBranch(
     SHAMapTreeNode* node,
-    boost::intrusive_ptr<SHAMapItem const> const& otherMapItem,
+    shamapitem_ptr const& otherMapItem,
     bool isFirstMap,
     Delta& differences,
     int& maxCount) const
@@ -73,11 +73,11 @@ SHAMap::walkBranch(
                 if (isFirstMap)
                     differences.insert(std::make_pair(
                         item->key(),
-                        DeltaRef(item, nullptr /*boost::intrusive_ptr<SHAMapItem const>()*/)));
+                        DeltaRef(item, nullptr /*shamapitem_ptr()*/)));
                 else
                     differences.insert(std::make_pair(
                         item->key(),
-                        DeltaRef(nullptr/*boost::intrusive_ptr<SHAMapItem const>()*/, item)));
+                        DeltaRef(nullptr/*shamapitem_ptr()*/, item)));
 
                 if (--maxCount <= 0)
                     return false;

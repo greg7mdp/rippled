@@ -120,8 +120,7 @@ public:
     {
         if (count != 0)
         {
-            p_ = reinterpret_cast<std::uint8_t*>(
-                std::aligned_alloc(alignof(Type), size * count_));
+            p_ = new std::uint8_t [size * count_];
             assert(p_ != nullptr);
         }
 
@@ -129,7 +128,7 @@ public:
         if (p_ != nullptr)
         {
             for (std::size_t i = 0; i != count_; ++i)
-                free(p_ + (i * size));
+                dealloc(p_ + (i * size));
 
             // Ignore the use of free above; we just use the API to easily
             // "build" the free list, but it's not an actual deallocation.
@@ -139,8 +138,7 @@ public:
 
     ~SlabAllocator()
     {
-        if (p_ != nullptr)
-            std::free(p_);
+        delete [] p_;
     }
 
     /** Returns the number of items that the allocator can accomodate. */
@@ -194,7 +192,7 @@ public:
                      been released; false otherwise.
      */
     bool
-    free(std::uint8_t const* ptr)
+    dealloc(std::uint8_t const* ptr)
     {
         assert(ptr);
 

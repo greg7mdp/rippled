@@ -119,9 +119,7 @@ public:
     /** The depth of the hash map: data is only present in the leaves */
     static inline constexpr unsigned int leafDepth = 64;
 
-    using DeltaItem = std::pair<
-        boost::intrusive_ptr<SHAMapItem const>,
-        boost::intrusive_ptr<SHAMapItem const>>;
+    using DeltaItem = std::pair<shamapitem_ptr, shamapitem_ptr>;
     using Delta = std::map<uint256, DeltaItem>;
 
     SHAMap(SHAMap const&) = delete;
@@ -190,7 +188,7 @@ public:
     delItem(uint256 const& id);
 
     bool
-    addItem(SHAMapNodeType type, boost::intrusive_ptr<SHAMapItem const> item);
+    addItem(SHAMapNodeType type, shamapitem_ptr item);
 
     SHAMapHash
     getHash() const;
@@ -199,18 +197,18 @@ public:
     bool
     updateGiveItem(
         SHAMapNodeType type,
-        boost::intrusive_ptr<SHAMapItem const> item);
+        shamapitem_ptr item);
 
     bool
     addGiveItem(
         SHAMapNodeType type,
-        boost::intrusive_ptr<SHAMapItem const> item);
+        shamapitem_ptr item);
 
     // Save a copy if you need to extend the life
     // of the SHAMapItem beyond this SHAMap
-    boost::intrusive_ptr<SHAMapItem const> const&
+    shamapitem_ptr const&
     peekItem(uint256 const& id) const;
-    boost::intrusive_ptr<SHAMapItem const> const&
+    shamapitem_ptr const&
     peekItem(uint256 const& id, SHAMapHash& hash) const;
 
     // traverse functions
@@ -258,7 +256,7 @@ public:
     void
     visitLeaves(
         std::function<
-            void(boost::intrusive_ptr<SHAMapItem const> const&)> const&) const;
+            void(shamapitem_ptr const&)> const&) const;
 
     // comparison/sync functions
 
@@ -365,8 +363,8 @@ private:
     using SharedPtrNodeStack =
         std::stack<std::pair<std::shared_ptr<SHAMapTreeNode>, SHAMapNodeID>>;
     using DeltaRef = std::pair<
-        boost::intrusive_ptr<SHAMapItem const>,
-        boost::intrusive_ptr<SHAMapItem const>>;
+        shamapitem_ptr,
+        shamapitem_ptr>;
 
     // tree node cache operations
     std::shared_ptr<SHAMapTreeNode>
@@ -479,7 +477,7 @@ private:
     descendNoStore(std::shared_ptr<SHAMapInnerNode> const&, int branch) const;
 
     /** If there is only one leaf below this node, get its contents */
-    boost::intrusive_ptr<SHAMapItem const> const&
+    shamapitem_ptr const&
     onlyBelow(SHAMapTreeNode*) const;
 
     bool
@@ -494,7 +492,7 @@ private:
     bool
     walkBranch(
         SHAMapTreeNode* node,
-        boost::intrusive_ptr<SHAMapItem const> const& otherMapItem,
+        shamapitem_ptr const& otherMapItem,
         bool isFirstMap,
         Delta& differences,
         int& maxCount) const;

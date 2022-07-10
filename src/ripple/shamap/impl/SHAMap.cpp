@@ -26,11 +26,12 @@
 #include <ripple/shamap/SHAMapTxPlusMetaLeafNode.h>
 
 namespace ripple {
+using shamapitem_ptr = boost::intrusive_ptr<SHAMapItem const>;
 
 [[nodiscard]] std::shared_ptr<SHAMapLeafNode>
 makeTypedLeaf(
     SHAMapNodeType type,
-    boost::intrusive_ptr<SHAMapItem const> item,
+    shamapitem_ptr item,
     std::uint32_t owner)
 {
     if (type == SHAMapNodeType::tnTRANSACTION_NM)
@@ -501,9 +502,9 @@ SHAMap::firstBelow(
 
     return belowHelper(node, stack, branch, {init, cmp, incr});
 }
-static const boost::intrusive_ptr<SHAMapItem const> no_item;
+static const shamapitem_ptr no_item;
 
-boost::intrusive_ptr<SHAMapItem const> const&
+shamapitem_ptr const&
 SHAMap::onlyBelow(SHAMapTreeNode* node) const
 {
     // If there is only one item below this node, return it
@@ -582,7 +583,7 @@ SHAMap::peekNextItem(uint256 const& id, SharedPtrNodeStack& stack) const
     return nullptr;
 }
 
-boost::intrusive_ptr<SHAMapItem const> const&
+shamapitem_ptr const&
 SHAMap::peekItem(uint256 const& id) const
 {
     SHAMapLeafNode* leaf = findKey(id);
@@ -593,7 +594,7 @@ SHAMap::peekItem(uint256 const& id) const
     return leaf->peekItem();
 }
 
-boost::intrusive_ptr<SHAMapItem const> const&
+shamapitem_ptr const&
 SHAMap::peekItem(uint256 const& id, SHAMapHash& hash) const
 {
     SHAMapLeafNode* leaf = findKey(id);
@@ -767,7 +768,7 @@ SHAMap::delItem(uint256 const& id)
 bool
 SHAMap::addGiveItem(
     SHAMapNodeType type,
-    boost::intrusive_ptr<SHAMapItem const> item)
+    shamapitem_ptr item)
 {
     assert(state_ != SHAMapState::Immutable);
     assert(type != SHAMapNodeType::tnINNER);
@@ -838,7 +839,7 @@ SHAMap::addGiveItem(
 bool
 SHAMap::addItem(
     SHAMapNodeType type,
-    boost::intrusive_ptr<SHAMapItem const> item)
+    shamapitem_ptr item)
 {
     return addGiveItem(type, std::move(item));
 }
@@ -858,7 +859,7 @@ SHAMap::getHash() const
 bool
 SHAMap::updateGiveItem(
     SHAMapNodeType type,
-    boost::intrusive_ptr<SHAMapItem const> item)
+    shamapitem_ptr item)
 {
     // can't change the tag but can change the hash
     uint256 tag = item->key();

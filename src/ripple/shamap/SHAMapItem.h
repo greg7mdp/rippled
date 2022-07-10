@@ -108,6 +108,9 @@ public:
     }
 };
 
+using shamapitem_ptr = boost::intrusive_ptr<SHAMapItem const>;
+    
+
 namespace detail {
 
 // clang-format off
@@ -146,11 +149,11 @@ intrusive_ptr_release(SHAMapItem const* x)
 
         // At most one slab will claim this pointer; if none do, it was
         // allocated manually, so we free it manually.
-        if (!detail::slab128.free(p) && !detail::slab192.free(p) &&
-            !detail::slab256.free(p) && !detail::slab512.free(p) &&
-            !detail::slab1024.free(p))
+        if (!detail::slab128.dealloc(p) && !detail::slab192.dealloc(p) &&
+            !detail::slab256.dealloc(p) && !detail::slab512.dealloc(p) &&
+            !detail::slab1024.dealloc(p))
         {
-            std::free(const_cast<std::uint8_t*>(p));
+            delete [] p;
         }
     }
 }
@@ -183,8 +186,7 @@ make_shamapitem(uint256 const& tag, Slice data)
     {
         // If we can't grab memory from the slab allocators, we fall back to
         // the standard library and try to grab a precisely-sized memory block:
-        raw = reinterpret_cast<std::uint8_t*>(std::aligned_alloc(
-            alignof(SHAMapItem), sizeof(SHAMapItem) + data.size()));
+        raw = new std::uint8_t [sizeof(SHAMapItem) + data.size()];
 
         if (raw == nullptr)
             throw std::bad_alloc();

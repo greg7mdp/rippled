@@ -35,7 +35,7 @@ class SHAMapTxLeafNode final : public SHAMapLeafNode,
 {
 public:
     SHAMapTxLeafNode(
-        boost::intrusive_ptr<SHAMapItem const> item,
+        shamapitem_ptr item,
         std::uint32_t cowid)
         : SHAMapLeafNode(std::move(item), cowid)
     {
@@ -43,7 +43,7 @@ public:
     }
 
     SHAMapTxLeafNode(
-        boost::intrusive_ptr<SHAMapItem const> item,
+        shamapitem_ptr item,
         std::uint32_t cowid,
         SHAMapHash const& hash)
         : SHAMapLeafNode(std::move(item), cowid, hash)
