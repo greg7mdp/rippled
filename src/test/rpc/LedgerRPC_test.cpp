@@ -372,20 +372,20 @@ class LedgerRPC_test : public beast::unit_test::suite
         }
     }
 
-    void
-    testLedgerEntrySidechain()
+    auto
+    createSidechainObjects(test::jtx::Env &env)
     {
-        testcase("ledger_entry Request Sidechain");
         using namespace test::jtx;
-        auto const features =
-            supported_amendments() | FeatureBitset{featureSidechains};
-        Env env{*this, features};
-        Account const locking_door_account{"locking_door_account"};
-        Account const issuing_door_account{"issuing_door_account"};
+        Account const locking_account{"locking_account"};
+        Account const issuing_account{"issuing_account"};
+        Account const alice{"Alice"};
+        Account const bob{"Bob"};
         auto locking_funds{XRP(10001)};
         auto issuing_funds{XRP(10001)};
-        env.fund(locking_funds, locking_door_account);
-        env.fund(issuing_funds, issuing_door_account);
+        env.fund(locking_funds, locking_account);
+        env.fund(issuing_funds, issuing_account);
+        env.fund(issuing_funds, alice);
+        env.fund(issuing_funds, bob);
         
         std::vector<signer> const signers = [] {
             constexpr int numSigners = 5;
@@ -401,17 +401,37 @@ class LedgerRPC_test : public beast::unit_test::suite
         
         std::uint32_t const quorum = signers.size() - 1;
         Json::Value sidechain_def =
-            sidechain(locking_door_account,
-                      xrpIssue(), issuing_door_account, xrpIssue());
+            sidechain(locking_account,
+                      xrpIssue(), issuing_account, xrpIssue());
         
-        Json::Value sidechain_json = sidechain_create(
-                locking_door_account,
-                sidechain_def,
-                quorum,
-                signers);
-        env(sidechain_json);
+        env(sidechain_create(locking_account,
+                             sidechain_def,
+                             quorum,
+                             signers));
+        
+        env(sidechain_xchain_seq_num_create(alice, sidechain_def));
+        env(sidechain_xchain_seq_num_create(bob, sidechain_def));
+            
+        return std::make_tuple(locking_account, issuing_account,
+                               alice, bob, 
+                               signers, quorum,
+                               sidechain_def);
+    }
+
+    void
+    testLedgerEntrySidechain()
+    {
+        testcase("ledger_entry Request Sidechain");
+        using namespace test::jtx;
+        auto const features =
+            supported_amendments() | FeatureBitset{featureSidechains};
+        Env env{*this, features};
+        auto [locking_account, issuing_account, alice, bob, 
+              signers, quorum, sidechain_def] = createSidechainObjects(env);
         env.close();
 
+        std::string const ledgerHash{to_string(env.closed()->info().hash)};
+        std::string sidechain_index;
         {
             // request the sidechain via RPC
             Json::Value jvParams;
@@ -421,10 +441,10 @@ class LedgerRPC_test : public beast::unit_test::suite
             
             BEAST_EXPECT(jrr.isMember(jss::node));
             auto r = jrr[jss::node];
-            std::cout << to_string(r) << '\n';
+            // std::cout << to_string(r) << '\n';
             
             BEAST_EXPECT(r.isMember(jss::Account));
-            BEAST_EXPECT(r[jss::Account] == locking_door_account.human());
+            BEAST_EXPECT(r[jss::Account] == locking_account.human());
             
             BEAST_EXPECT(r.isMember(jss::Flags));
             
@@ -436,19 +456,103 @@ class LedgerRPC_test : public beast::unit_test::suite
             BEAST_EXPECT(s.isArray() && s.size() == signers.size());
             for (size_t i = 0; i < s.size(); ++i)
             {
-                BEAST_EXPECT(s[i]["SignerWeight"] == 1);
+                BEAST_EXPECT(s[i]["SignerEntry"]["SignerWeight"] == 1);
             }
             
             BEAST_EXPECT(r.isMember("SignerQuorum"));
             BEAST_EXPECT(r["SignerQuorum"] == quorum);
             
             BEAST_EXPECT(r.isMember("XChainSequence"));
-            BEAST_EXPECT(r["XChainSequence"] == 0); // no tx submitted yet
+            BEAST_EXPECT(r["XChainSequence"] == 2); // creates two sequence numbers
             
             BEAST_EXPECT(r.isMember(jss::index));
+            sidechain_index = r[jss::index].asString();
+        }
+        {
+            // request the sidechain via RPC by index
+            Json::Value jvParams;
+            jvParams[jss::sidechain] = sidechain_def;
+            jvParams[jss::index] = sidechain_index;
+            Json::Value const jrr = env.rpc(
+                "json", "ledger_entry", to_string(jvParams))[jss::result];
+            
+            BEAST_EXPECT(jrr.isMember(jss::node));
+            auto r = jrr[jss::node];
+            // std::cout << to_string(r) << '\n';
+            
+            BEAST_EXPECT(r.isMember(jss::Account));
+            BEAST_EXPECT(r[jss::Account] == locking_account.human());
+            
+        }
+        {
+            // swap door accounts and make sure we get an error value
+            Json::Value reverse_sidechain_def =
+                sidechain(issuing_account,
+                          xrpIssue(), locking_account, xrpIssue());
+            Json::Value jvParams;
+            jvParams[jss::sidechain] = reverse_sidechain_def;
+            jvParams[jss::ledger_hash] = ledgerHash;
+            Json::Value const jrr = env.rpc(
+                "json", "ledger_entry", to_string(jvParams))[jss::result];
+            
+            checkErrorValue(jrr, "entryNotFound", "");
         }
     }
 
+    void
+    testLedgerEntryClaimID()
+    {
+        testcase("ledger_entry Request ClaimID");
+        using namespace test::jtx;
+        auto const features =
+            supported_amendments() | FeatureBitset{featureSidechains};
+        Env env{*this, features};
+        auto [locking_account, issuing_account, alice, bob, 
+              signers, quorum, sidechain_def] = createSidechainObjects(env);
+        env.close();
+
+        std::string const ledgerHash{to_string(env.closed()->info().hash)};
+        std::string sidechain_index; 
+        {
+            // request the xchain_claim_id via RPC
+            sidechain_def["xchain_claim_id"] = 1;
+            Json::Value jvParams;
+            jvParams["xchain_claim_id"] = sidechain_def;
+            Json::Value const jrr = env.rpc(
+                "json", "ledger_entry", to_string(jvParams))[jss::result];
+            
+            BEAST_EXPECT(jrr.isMember(jss::node));
+            auto r = jrr[jss::node];
+            // std::cout << to_string(r) << '\n';
+            
+            BEAST_EXPECT(r.isMember(jss::Account));
+            BEAST_EXPECT(r[jss::Account] == alice.human());
+            BEAST_EXPECT(r["LedgerEntryType"] == "CrosschainSeqNum");
+            BEAST_EXPECT(r["XChainSequence"] == 1);
+            BEAST_EXPECT(r["OwnerNode"] == "0");
+        }
+
+        {
+            // request the xchain_claim_id via RPC
+            sidechain_def["xchain_claim_id"] = 2;
+            Json::Value jvParams;
+            jvParams["xchain_claim_id"] = sidechain_def;
+            Json::Value const jrr = env.rpc(
+                "json", "ledger_entry", to_string(jvParams))[jss::result];
+            
+            BEAST_EXPECT(jrr.isMember(jss::node));
+            auto r = jrr[jss::node];
+            // std::cout << to_string(r) << '\n';
+            
+            BEAST_EXPECT(r.isMember(jss::Account));
+            BEAST_EXPECT(r[jss::Account] == bob.human());
+            BEAST_EXPECT(r["LedgerEntryType"] == "CrosschainSeqNum");
+            BEAST_EXPECT(r["XChainSequence"] == 2);
+            BEAST_EXPECT(r["OwnerNode"] == "0");
+        }
+
+    }
+    
     void
     testLedgerEntryCheck()
     {
@@ -1811,6 +1915,7 @@ public:
         testLedgerAccounts();
         testLedgerEntryAccountRoot();
         testLedgerEntrySidechain();
+        testLedgerEntryClaimID();
         testLedgerEntryCheck();
         testLedgerEntryDepositPreauth();
         testLedgerEntryDirectory();

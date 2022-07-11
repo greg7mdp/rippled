@@ -392,6 +392,63 @@ doLedgerEntry(RPC::JsonContext& context)
             uNodeIndex = keylet.key;
         }
     }
+    else if (context.params.isMember("xchain_claim_id"))
+    {
+        expectedType = ltCROSSCHAIN_SEQUENCE_NUMBER;
+        auto& claim_id = context.params["xchain_claim_id"];
+        if (claim_id.isString())
+        {
+            // we accept a node id as specifier of a xchain_claim_id
+            if (!uNodeIndex.parseHex(claim_id.asString()))
+            {
+                uNodeIndex = beast::zero;
+                jvResult[jss::error] = "malformedRequest";
+            }
+        }
+        else if (!claim_id.isObject() ||
+                 !claim_id.isMember(jss::dst_chain_door) ||
+                 !claim_id.isMember(jss::dst_chain_issue) ||
+                 !claim_id.isMember(jss::src_chain_door) ||
+                 !claim_id.isMember(jss::src_chain_issue) ||
+                 !claim_id.isMember("xchain_claim_id"))
+        {
+            jvResult[jss::error] = "malformedRequest";
+        }
+        else
+        {
+            // if not specified with a node id, a claim_id is specified by
+            // four strings (src_chain_door, src_chain_issue,
+            // dst_chain_door, dst_chain_issue)
+            auto lcd = parseBase58<AccountID>(claim_id[jss::src_chain_door].asString());
+            auto icd = parseBase58<AccountID>(claim_id[jss::dst_chain_door].asString());
+            Issue lci, ici;
+            bool valid = lcd && icd;
+            if (valid)
+            {
+                try {
+                    lci = issueFromJson(claim_id[jss::src_chain_issue]);
+                    ici = issueFromJson(claim_id[jss::dst_chain_issue]);
+                }
+                catch (std::runtime_error const& ex)
+                {
+                    valid = false;
+                }
+            }
+
+            if (valid && claim_id["xchain_claim_id"].isIntegral())
+            {
+                auto seq = claim_id["xchain_claim_id"].asUInt();
+            
+                STSidechain sidechain_spec(*lcd, lci, *icd, ici);
+                Keylet keylet = keylet::xChainSeqNum(sidechain_spec, seq);
+                uNodeIndex = keylet.key;
+            }
+        }
+    }
+    else if (context.params.isMember("xchain_create_account_claim_state"))
+    {
+        // todo when ledger object defined in LedgerFormats.cpp
+    }
     else
     {
         if (context.params.isMember("params") &&
