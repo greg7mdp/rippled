@@ -113,6 +113,32 @@ using shamapitem_ptr = boost::intrusive_ptr<SHAMapItem const>;
 
 namespace detail {
 
+template<std::size_t... I>
+constexpr auto
+make_slab_helper(std::index_sequence<I...>) {
+    return std::tuple { new SlabAllocator<SHAMapItem, (I + 1) * 64>(16384)...};
+}
+
+inline auto slabs = make_slab_helper(std::make_index_sequence<16>{});
+
+template<std::size_t... I>
+constexpr auto
+make_allocators_helper(std::index_sequence<I...>) {
+    return std::array{std::function{[] { std::get<I>(slabs)->alloc(); }}...};
+}
+
+template<std::size_t... I>
+constexpr auto
+make_deallocators_helper(std::index_sequence<I...>) {
+    return std::array{std::function{
+            [](std::uint8_t const* p) { std::get<I>(slabs)->dealloc(p); }}...};
+}
+
+
+inline auto allocators = make_allocators_helper(std::make_index_sequence<16>{});
+inline auto deallocators = make_deallocators_helper(std::make_index_sequence<16>{});
+    
+
 // clang-format off
 inline SlabAllocator<SHAMapItem,  128> slab128 ( 7000000);
 inline SlabAllocator<SHAMapItem,  192> slab192 ( 1000000);

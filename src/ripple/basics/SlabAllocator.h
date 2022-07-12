@@ -204,16 +204,16 @@ public:
     {
         assert(ptr);
 
-        auto ptr2 = const_cast<std::uint8_t*>(ptr);
+        auto p = const_cast<std::uint8_t*>(ptr);
 
         dealloc_fast_count_++;
-        scrub(ptr2, 0x5A);
+        scrub(p, 0x5A);
 
         std::lock_guard lock(m_);
         
-        assert(own(ptr2));
-        *reinterpret_cast<std::uint8_t**>(ptr2) = l_;
-        l_ = ptr2;
+        assert(own(p));
+        *reinterpret_cast<std::uint8_t**>(p) = l_;
+        l_ = p;
 
         return true;
     }
