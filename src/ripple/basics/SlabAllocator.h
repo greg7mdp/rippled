@@ -127,12 +127,17 @@ public:
         // We don't treat a memory allocation
         if (p_ != nullptr)
         {
-            for (std::size_t i = 0; i != count_; ++i)
-                dealloc(p_ + (i * size));
+            std::lock_guard lock(m_);
 
-            // Ignore the use of free above; we just use the API to easily
-            // "build" the free list, but it's not an actual deallocation.
-            dealloc_fast_count_ = 0;
+            std::uint8_t** tail = &l_;
+            for (std::size_t i = 0; i != count_; ++i)
+            {
+                std::uint8_t* p = p_ + (i * size);
+                scrub(p, 0x5A);
+                *tail = p;
+                tail = reinterpret_cast<std::uint8_t**>(p);
+            }
+            *tail = nullptr;
         }
     }
 
