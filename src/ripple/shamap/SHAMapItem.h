@@ -113,15 +113,16 @@ using shamapitem_ptr = boost::intrusive_ptr<SHAMapItem const>;
 
 namespace detail {
 
-constexpr size_t num_slabs = 16;
-constexpr size_t slab_increment = 64;
+constexpr size_t num_slabs = 32;
+constexpr size_t slab_increment = 32;
+constexpr size_t slab_block_size = 8192;
 constexpr size_t max_slab_size = num_slabs * slab_increment;
 
 template<std::size_t... I>
 constexpr auto
 make_slab_helper(std::index_sequence<I...>) {
-    return std::tuple{
-        new SlabAllocator<SHAMapItem, (I + 1) * slab_increment>(16384)...};
+    return std::tuple{new SlabAllocator<SHAMapItem, (I + 1) * slab_increment>(
+        slab_block_size)...};
 }
 
 inline auto slabs = make_slab_helper(std::make_index_sequence<num_slabs>{});

@@ -109,7 +109,7 @@ public:
     SlabAllocator(
         std::size_t count,
         std::string name = "Slab: " + beast::type_name<Type>())
-        : name_(name), count_(16384)
+        : name_(name), count_(count)
     {
         assert(count_);
         add_block();
