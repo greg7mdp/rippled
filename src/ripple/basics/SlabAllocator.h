@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 #include <mutex>
 
 namespace ripple {
@@ -63,7 +64,7 @@ private:
     std::size_t const count_;
 
     // The underlying memory block:
-    std::uint8_t* p_;
+    std::vector<std::uint8_t*> p_;
 
     // A linked list of free buffers:
     std::uint8_t* l_ = nullptr;
@@ -105,59 +106,63 @@ public:
         return ret;
     }();
 
-    /** Constructs a slab allocator able to allocate up to count items
-
-        @param count the number of items the slab allocator can allocate; note
-                     that a count of 0 is valid and means that the allocator
-                     is, effectively, disabled. This can be very useful in some
-                     contexts (e.g. when mimimal memory usage is needed) and
-                     allows for graceful failure.
-     */
     SlabAllocator(
         std::size_t count,
         std::string name = "Slab: " + beast::type_name<Type>())
-        : name_(name), count_(count)
+        : name_(name), count_(16384)
     {
-        if (count != 0)
-        {
-            p_ = new std::uint8_t [size * count_];
-            assert(p_ != nullptr);
-        }
-
-        // We don't treat a memory allocation
-        if (p_ != nullptr)
-        {
-            std::lock_guard lock(m_);
-
-            std::uint8_t** tail = &l_;
-            for (std::size_t i = 0; i != count_; ++i)
-            {
-                std::uint8_t* p = p_ + (i * size);
-                scrub(p, 0x5A);
-                *tail = p;
-                tail = reinterpret_cast<std::uint8_t**>(p);
-            }
-            *tail = nullptr;
-        }
+        assert(count_);
+        add_block();
     }
 
     ~SlabAllocator()
     {
-        delete [] p_;
+        for (auto p : p_)
+            delete [] p;
+    }
+
+    void
+    add_block()
+    {
+        auto block = new std::uint8_t [size * count_];
+        assert(block != nullptr);
+        p_.push_back(block);
+        link_block(block);
+    }
+    
+    void
+    link_block(std::uint8_t* block)
+    {
+        if (block == nullptr)
+            return;
+        
+        std::lock_guard lock(m_);
+
+        std::uint8_t** tail = &l_;
+        for (std::size_t i = 0; i != count_; ++i)
+        {
+            std::uint8_t* p = block + (i * size);
+            scrub(p, 0x5A);
+            *tail = p;
+            tail = reinterpret_cast<std::uint8_t**>(p);
+        }
+        *tail = nullptr;
     }
 
     /** Returns the number of items that the allocator can accomodate. */
     std::size_t
     count() const
     {
-        return count_;
+        return count_ * p_.size();
     }
 
-    /** Determines whether the given pointer belongs to this allocator */
     bool
-    own(std::uint8_t const* p) const
+    own(std::uint8_t const* ptr) const
     {
-        return (p >= p_) && (p < p_ + (size * count_));
+        for (auto p : p_)
+            if ((ptr >= p) && (ptr < p + (size * count_)))
+                return true;
+        return false;
     }
 
     /** Returns a suitably aligned pointer, if one is available.
@@ -170,23 +175,21 @@ public:
     {
         alloc_count_++;
 
-        if (l_ != nullptr)
+        if (l_ == nullptr)
+            add_block();
+        
+        assert (l_ != nullptr);
+        std::uint8_t* ret;
+        
         {
-            std::uint8_t* ret;
-            {
-                std::lock_guard lock(m_);
-                ret = l_;
-                if (ret)
-                    l_ = *reinterpret_cast<std::uint8_t**>(ret);
-            }
-            if (ret)
-            {
-                alloc_fast_count_++;
-                return scrub(ret, 0xCC);
-            }
+            std::lock_guard lock(m_);
+        
+            ret = l_;
+            l_ = *reinterpret_cast<std::uint8_t**>(ret);
         }
-
-        return nullptr;
+        alloc_fast_count_++;
+        
+        return scrub(ret, 0xCC);
     }
 
     /** Returns the memory block to the allocator.
@@ -203,14 +206,12 @@ public:
 
         auto ptr2 = const_cast<std::uint8_t*>(ptr);
 
-        if (!own(ptr2))
-            return false;
-
         dealloc_fast_count_++;
-
         scrub(ptr2, 0x5A);
 
         std::lock_guard lock(m_);
+        
+        assert(own(ptr2));
         *reinterpret_cast<std::uint8_t**>(ptr2) = l_;
         l_ = ptr2;
 
