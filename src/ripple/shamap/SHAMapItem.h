@@ -113,39 +113,55 @@ using shamapitem_ptr = boost::intrusive_ptr<SHAMapItem const>;
 
 namespace detail {
 
+constexpr size_t num_slabs = 16;
+constexpr size_t slab_increment = 64;
+constexpr size_t max_slab_size = num_slabs * slab_increment;
+
 template<std::size_t... I>
 constexpr auto
 make_slab_helper(std::index_sequence<I...>) {
-    return std::tuple { new SlabAllocator<SHAMapItem, (I + 1) * 64>(16384)...};
+    return std::tuple{
+        new SlabAllocator<SHAMapItem, (I + 1) * slab_increment>(16384)...};
 }
 
-inline auto slabs = make_slab_helper(std::make_index_sequence<16>{});
+inline auto slabs = make_slab_helper(std::make_index_sequence<num_slabs>{});
 
 template<std::size_t... I>
 constexpr auto
 make_allocators_helper(std::index_sequence<I...>) {
-    return std::array{std::function{[] { std::get<I>(slabs)->alloc(); }}...};
+    return std::array{
+        std::function{[] { return std::get<I>(slabs)->alloc(); }}...};
 }
 
 template<std::size_t... I>
 constexpr auto
 make_deallocators_helper(std::index_sequence<I...>) {
     return std::array{std::function{
-            [](std::uint8_t const* p) { std::get<I>(slabs)->dealloc(p); }}...};
+        [](std::uint8_t const* p) { std::get<I>(slabs)->dealloc(p); }}...};
 }
 
-
-inline auto allocators = make_allocators_helper(std::make_index_sequence<16>{});
-inline auto deallocators = make_deallocators_helper(std::make_index_sequence<16>{});
+inline auto allocators =
+    make_allocators_helper(std::make_index_sequence<num_slabs>{});
     
+inline auto deallocators =
+    make_deallocators_helper(std::make_index_sequence<num_slabs>{});
 
-// clang-format off
-inline SlabAllocator<SHAMapItem,  128> slab128 ( 7000000);
-inline SlabAllocator<SHAMapItem,  192> slab192 ( 1000000);
-inline SlabAllocator<SHAMapItem,  256> slab256 (10000000);
-inline SlabAllocator<SHAMapItem,  512> slab512 (  750000);
-inline SlabAllocator<SHAMapItem, 1024> slab1024(  450000);
-// clang-format on
+inline size_t allocator_index(size_t sz)
+{
+    return sz ? (sz - 1) / slab_increment : 0;
+}
+        
+inline void deallocate(std::size_t sz, std::uint8_t const* p)
+{
+    assert(sz <= max_slab_size);
+    deallocators[allocator_index(sz)](p);
+}
+
+inline std::uint8_t *allocate(std::size_t sz)
+{
+    assert(sz <= max_slab_size);
+    return allocators[allocator_index(sz)]();
+}
 
 inline std::atomic<std::uint64_t> cnt64 = 0;
 
@@ -165,6 +181,7 @@ intrusive_ptr_release(SHAMapItem const* x)
 {
     if (--x->refcount_ == 0)
     {
+        auto sz = x->size();
         auto p = reinterpret_cast<std::uint8_t const*>(x);
 
         // The SHAMapItem constuctor isn't trivial (because the destructor
@@ -173,50 +190,34 @@ intrusive_ptr_release(SHAMapItem const* x)
         if constexpr (!std::is_trivially_destructible_v<SHAMapItem>)
             std::destroy_at(x);
 
+        
         // At most one slab will claim this pointer; if none do, it was
         // allocated manually, so we free it manually.
-        if (!detail::slab128.dealloc(p) && !detail::slab192.dealloc(p) &&
-            !detail::slab256.dealloc(p) && !detail::slab512.dealloc(p) &&
-            !detail::slab1024.dealloc(p))
-        {
+        if (sz <= detail::max_slab_size)
+            detail::deallocate(sz, p);
+        else
             delete [] p;
-        }
     }
 }
 
 inline boost::intrusive_ptr<SHAMapItem>
 make_shamapitem(uint256 const& tag, Slice data)
 {
-    assert(data.size() <= megabytes<std::size_t>(64));
-
-    std::uint8_t* raw = [&data]() -> std::uint8_t* {
-        if (data.size() < 128)
-            return detail::slab128.alloc();
-
-        if (data.size() < 192)
-            return detail::slab192.alloc();
-
-        if (data.size() < 256)
-            return detail::slab256.alloc();
-
-        if (data.size() < 512)
-            return detail::slab512.alloc();
-
-        if (data.size() < 1024)
-            return detail::slab1024.alloc();
-
-        return nullptr;
-    }();
-
-    if (raw == nullptr)
+    auto sz = data.size();
+    assert(sz <= megabytes<std::size_t>(64));
+    std::uint8_t* raw;
+    
+    if (sz <= detail::max_slab_size)
+        raw = detail::allocate(sz);
+    else
     {
         // If we can't grab memory from the slab allocators, we fall back to
         // the standard library and try to grab a precisely-sized memory block:
         raw = new std::uint8_t [sizeof(SHAMapItem) + data.size()];
-
-        if (raw == nullptr)
-            throw std::bad_alloc();
     }
+
+    if (raw == nullptr)
+        throw std::bad_alloc();
 
     // We do not increment the reference count here on purpose: the
     // constructor of SHAMapItem explicitly sets it to 1. We use the fact
