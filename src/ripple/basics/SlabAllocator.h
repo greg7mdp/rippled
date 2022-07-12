@@ -112,7 +112,6 @@ public:
         : name_(name), count_(count)
     {
         assert(count_);
-        add_block();
     }
 
     ~SlabAllocator()
@@ -226,7 +225,7 @@ public:
         Stats stats;
         stats.name = name_;
         stats.size = size;
-        stats.count = count_;
+        stats.count = count();
         stats.alloc_count = alloc_count_;
         stats.alloc_fast_count = alloc_fast_count_;
         stats.dealloc_fast_count = dealloc_fast_count_;
