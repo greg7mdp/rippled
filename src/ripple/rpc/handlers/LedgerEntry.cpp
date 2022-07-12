@@ -359,11 +359,11 @@ doLedgerEntry(RPC::JsonContext& context)
                 jvResult[jss::error] = "malformedRequest";
             }
         }
-        else if (!bridge.isObject() ||
-                 !bridge.isMember(jss::dst_chain_door) ||
-                 !bridge.isMember(jss::dst_chain_issue) ||
-                 !bridge.isMember(jss::src_chain_door) ||
-                 !bridge.isMember(jss::src_chain_issue))
+        else if (
+            !bridge.isObject() || !bridge.isMember(jss::dst_chain_door) ||
+            !bridge.isMember(jss::dst_chain_issue) ||
+            !bridge.isMember(jss::src_chain_door) ||
+            !bridge.isMember(jss::src_chain_issue))
         {
             jvResult[jss::error] = "malformedRequest";
         }
@@ -372,13 +372,16 @@ doLedgerEntry(RPC::JsonContext& context)
             // if not specified with a node id, a bridge is specified by
             // four strings (src_chain_door, src_chain_issue,
             // dst_chain_door, dst_chain_issue)
-            auto lcd = parseBase58<AccountID>(bridge[jss::src_chain_door].asString());
-            auto icd = parseBase58<AccountID>(bridge[jss::dst_chain_door].asString());
+            auto lcd =
+                parseBase58<AccountID>(bridge[jss::src_chain_door].asString());
+            auto icd =
+                parseBase58<AccountID>(bridge[jss::dst_chain_door].asString());
             Issue lci, ici;
             bool valid = lcd && icd;
             if (valid)
             {
-                try {
+                try
+                {
                     lci = issueFromJson(bridge[jss::src_chain_issue]);
                     ici = issueFromJson(bridge[jss::dst_chain_issue]);
                 }
@@ -405,12 +408,12 @@ doLedgerEntry(RPC::JsonContext& context)
                 jvResult[jss::error] = "malformedRequest";
             }
         }
-        else if (!claim_id.isObject() ||
-                 !claim_id.isMember(jss::dst_chain_door) ||
-                 !claim_id.isMember(jss::dst_chain_issue) ||
-                 !claim_id.isMember(jss::src_chain_door) ||
-                 !claim_id.isMember(jss::src_chain_issue) ||
-                 !claim_id.isMember("xchain_claim_id"))
+        else if (
+            !claim_id.isObject() || !claim_id.isMember(jss::dst_chain_door) ||
+            !claim_id.isMember(jss::dst_chain_issue) ||
+            !claim_id.isMember(jss::src_chain_door) ||
+            !claim_id.isMember(jss::src_chain_issue) ||
+            !claim_id.isMember("xchain_claim_id"))
         {
             jvResult[jss::error] = "malformedRequest";
         }
@@ -419,13 +422,16 @@ doLedgerEntry(RPC::JsonContext& context)
             // if not specified with a node id, a claim_id is specified by
             // four strings (src_chain_door, src_chain_issue,
             // dst_chain_door, dst_chain_issue)
-            auto lcd = parseBase58<AccountID>(claim_id[jss::src_chain_door].asString());
-            auto icd = parseBase58<AccountID>(claim_id[jss::dst_chain_door].asString());
+            auto lcd = parseBase58<AccountID>(
+                claim_id[jss::src_chain_door].asString());
+            auto icd = parseBase58<AccountID>(
+                claim_id[jss::dst_chain_door].asString());
             Issue lci, ici;
             bool valid = lcd && icd;
             if (valid)
             {
-                try {
+                try
+                {
                     lci = issueFromJson(claim_id[jss::src_chain_issue]);
                     ici = issueFromJson(claim_id[jss::dst_chain_issue]);
                 }
@@ -438,7 +444,7 @@ doLedgerEntry(RPC::JsonContext& context)
             if (valid && claim_id["xchain_claim_id"].isIntegral())
             {
                 auto seq = claim_id["xchain_claim_id"].asUInt();
-            
+
                 STSidechain sidechain_spec(*lcd, lci, *icd, ici);
                 Keylet keylet = keylet::xChainSeqNum(sidechain_spec, seq);
                 uNodeIndex = keylet.key;
