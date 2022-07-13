@@ -40,9 +40,6 @@ public:
         // The name of the allocator
         std::string name;
 
-        // The size of an individual item
-        std::size_t size = 0;
-
         // The number of items the allocator can support
         std::size_t count = 0;
 
@@ -81,14 +78,14 @@ private:
     // How many of those went to our internal buffer:
     std::atomic<std::uint64_t> dealloc_fast_count_ = 0;
 
-    // Scrubs the memory range [ptr, ptr+Size)
+    // Scrubs the memory range [ptr, ptr+size)
     std::uint8_t*
     scrub(std::uint8_t* ptr, [[maybe_unused]] std::uint8_t value)
     {
         assert(ptr != nullptr);
 
 #ifdef SLAB_SCRUB_MEMORY
-        std::memset(ptr, value, Size);
+        std::memset(ptr, value, size);
 #endif
 
         return ptr;
@@ -124,7 +121,9 @@ public:
     add_block()
     {
         auto block = new std::uint8_t [size * count_];
+        assert(((uintptr_t)block & 0x7) == 0); // check alignment
         assert(block != nullptr);
+        
         p_.push_back(block);
         link_block(block);
     }
@@ -135,8 +134,6 @@ public:
         if (block == nullptr)
             return;
         
-        std::lock_guard lock(m_);
-
         std::uint8_t** tail = &l_;
         for (std::size_t i = 0; i != count_; ++i)
         {
@@ -173,15 +170,14 @@ public:
     alloc()
     {
         alloc_count_++;
-
-        if (l_ == nullptr)
-            add_block();
-        
-        assert (l_ != nullptr);
         std::uint8_t* ret;
-        
         {
             std::lock_guard lock(m_);
+        
+            if (l_ == nullptr)
+                add_block();
+        
+            assert (l_ != nullptr);
         
             ret = l_;
             l_ = *reinterpret_cast<std::uint8_t**>(ret);
