@@ -117,48 +117,12 @@ public:
             delete [] p;
     }
 
-    void
-    add_block()
-    {
-        auto block = new std::uint8_t [size * count_];
-        assert(((uintptr_t)block & 0x7) == 0); // check alignment
-        assert(block != nullptr);
-        
-        p_.push_back(block);
-        link_block(block);
-    }
-    
-    void
-    link_block(std::uint8_t* block)
-    {
-        if (block == nullptr)
-            return;
-        
-        std::uint8_t** tail = &l_;
-        for (std::size_t i = 0; i != count_; ++i)
-        {
-            std::uint8_t* p = block + (i * size);
-            scrub(p, 0x5A);
-            *tail = p;
-            tail = reinterpret_cast<std::uint8_t**>(p);
-        }
-        *tail = nullptr;
-    }
-
     /** Returns the number of items that the allocator can accomodate. */
     std::size_t
     count() const
     {
+        std::lock_guard lock(m_);
         return count_ * p_.size();
-    }
-
-    bool
-    own(std::uint8_t const* ptr) const
-    {
-        for (auto p : p_)
-            if ((ptr >= p) && (ptr < p + (size * count_)))
-                return true;
-        return false;
     }
 
     /** Returns a suitably aligned pointer, if one is available.
@@ -227,6 +191,40 @@ public:
         stats.dealloc_fast_count = dealloc_fast_count_;
         return stats;
     }
+
+private:
+    void
+    add_block()
+    {
+        auto block = new std::uint8_t [size * count_];
+        assert(((uintptr_t)block & 0x7) == 0); // check alignment
+        assert(block != nullptr);
+
+        p_.push_back(block);
+
+        // add block buckets to linked list (in increasing address order)
+        assert(l_ == nullptr);
+        std::uint8_t** tail = &l_;
+        for (std::size_t i = 0; i != count_; ++i)
+        {
+            std::uint8_t* p = block + (i * size);
+            scrub(p, 0x5A);
+            *tail = p;
+            tail = reinterpret_cast<std::uint8_t**>(p);
+        }
+        *tail = nullptr;
+    }
+
+    bool
+    own(std::uint8_t const* ptr) const
+    {
+        for (auto p : p_)
+            if ((ptr >= p) && (ptr < p + (size * count_)))
+                return true;
+        return false;
+    }
+
+    
 };
 
 }  // namespace ripple
