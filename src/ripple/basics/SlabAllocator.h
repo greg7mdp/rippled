@@ -111,6 +111,11 @@ public:
         assert(count_);
     }
 
+    SlabAllocator(const SlabAllocator&) = delete;
+
+    SlabAllocator&
+    operator=(const SlabAllocator&) = delete;
+
     ~SlabAllocator()
     {
         for (auto p : p_)
