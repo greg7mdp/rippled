@@ -110,9 +110,9 @@ using shamapitem_ptr = boost::intrusive_ptr<SHAMapItem const>;
 
 namespace detail {
 
-constexpr size_t num_slabs = 32;
-constexpr size_t slab_increment = 32;
-constexpr size_t slab_block_size = 8192;
+constexpr size_t num_slabs = 40;
+constexpr size_t slab_increment = 16;
+constexpr size_t slab_block_size = 4096;
 constexpr size_t max_slab_size = num_slabs * slab_increment;
 
 template<std::size_t... I>
