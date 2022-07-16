@@ -404,13 +404,13 @@ private:
 
     /** Unshare the node, allowing it to be modified */
     template <class Node>
-    std::shared_ptr<Node>
-    unshareNode(std::shared_ptr<Node>, SHAMapNodeID const& nodeID);
+    shamapnode_ptr<Node>
+    unshareNode(shamapnode_ptr<Node>, SHAMapNodeID const& nodeID);
 
     /** prepare a node to be modified before flushing */
     template <class Node>
-    std::shared_ptr<Node>
-    preFlushNode(std::shared_ptr<Node> node) const;
+    shamapnode_ptr<Node>
+    preFlushNode(shamapnode_ptr<Node> node) const;
 
     /** write and canonicalize modified node */
     shamaptreenode_ptr
@@ -448,9 +448,9 @@ private:
     SHAMapTreeNode*
     descendThrow(SHAMapInnerNode*, int branch) const;
     shamaptreenode_ptr
-    descend(std::shared_ptr<SHAMapInnerNode> const&, int branch) const;
+    descend(shamapnode_ptr<SHAMapInnerNode> const&, int branch) const;
     shamaptreenode_ptr
-    descendThrow(std::shared_ptr<SHAMapInnerNode> const&, int branch) const;
+    descendThrow(shamapnode_ptr<SHAMapInnerNode> const&, int branch) const;
 
     // Descend with filter
     // If pending, callback is called as if it called fetchNodeNT
@@ -474,7 +474,7 @@ private:
     // Non-storing
     // Does not hook the returned node to its parent
     shamaptreenode_ptr
-    descendNoStore(std::shared_ptr<SHAMapInnerNode> const&, int branch) const;
+    descendNoStore(shamapnode_ptr<SHAMapInnerNode> const&, int branch) const;
 
     /** If there is only one leaf below this node, get its contents */
     shamapitem_ptr const&

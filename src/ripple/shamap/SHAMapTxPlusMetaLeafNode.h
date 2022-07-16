@@ -54,7 +54,7 @@ public:
     shamaptreenode_ptr
     clone(std::uint32_t cowid) const override
     {
-        return std::make_shared<SHAMapTxPlusMetaLeafNode>(item_, cowid, hash_);
+        return make_shamapnode<SHAMapTxPlusMetaLeafNode>(item_, cowid, hash_);
     }
 
     SHAMapNodeType

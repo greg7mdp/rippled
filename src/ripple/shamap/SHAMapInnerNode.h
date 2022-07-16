@@ -20,7 +20,7 @@
 #ifndef RIPPLE_SHAMAP_SHAMAPINNERNODE_H_INCLUDED
 #define RIPPLE_SHAMAP_SHAMAPINNERNODE_H_INCLUDED
 
-#include <ripple/basics/TaggedCache.h>
+#include <ripple/basics/TaggedCacheIntr.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/shamap/SHAMapItem.h>
 #include <ripple/shamap/SHAMapNodeID.h>

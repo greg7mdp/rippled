@@ -159,7 +159,7 @@ SHAMapInnerNode::clone(std::uint32_t cowid) const
 {
     auto const branchCount = getBranchCount();
     auto const thisIsSparse = !hashesAndChildren_.isDense();
-    auto p = std::make_shared<SHAMapInnerNode>(cowid, branchCount);
+    auto p = make_shamapnode<SHAMapInnerNode>(cowid, branchCount);
     p->hash_ = hash_;
     p->isBranch_ = isBranch_;
     p->fullBelowGen_ = fullBelowGen_;
@@ -215,7 +215,7 @@ SHAMapInnerNode::makeFullInner(
     if (data.size() != branchFactor * uint256::bytes)
         Throw<std::runtime_error>("Invalid FI node");
 
-    auto ret = std::make_shared<SHAMapInnerNode>(0, branchFactor);
+    auto ret = make_shamapnode<SHAMapInnerNode>(0, branchFactor);
 
     SerialIter si(data);
 
@@ -252,7 +252,7 @@ SHAMapInnerNode::makeCompressedInner(Slice data)
 
     SerialIter si(data);
 
-    auto ret = std::make_shared<SHAMapInnerNode>(0, branchFactor);
+    auto ret = make_shamapnode<SHAMapInnerNode>(0, branchFactor);
 
     auto hashes = ret->hashesAndChildren_.getHashes();
 

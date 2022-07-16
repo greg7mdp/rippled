@@ -28,21 +28,21 @@
 namespace ripple {
 using shamapitem_ptr = boost::intrusive_ptr<SHAMapItem const>;
 
-[[nodiscard]] std::shared_ptr<SHAMapLeafNode>
+[[nodiscard]] shamapnode_ptr<SHAMapLeafNode>
 makeTypedLeaf(
     SHAMapNodeType type,
     shamapitem_ptr item,
     std::uint32_t owner)
 {
     if (type == SHAMapNodeType::tnTRANSACTION_NM)
-        return std::make_shared<SHAMapTxLeafNode>(std::move(item), owner);
+        return make_shamapnode<SHAMapTxLeafNode>(std::move(item), owner);
 
     if (type == SHAMapNodeType::tnTRANSACTION_MD)
-        return std::make_shared<SHAMapTxPlusMetaLeafNode>(
+        return make_shamapnode<SHAMapTxPlusMetaLeafNode>(
             std::move(item), owner);
 
     if (type == SHAMapNodeType::tnACCOUNT_STATE)
-        return std::make_shared<SHAMapAccountStateLeafNode>(
+        return make_shamapnode<SHAMapAccountStateLeafNode>(
             std::move(item), owner);
 
     LogicError(
@@ -54,7 +54,7 @@ makeTypedLeaf(
 SHAMap::SHAMap(SHAMapType t, Family& f)
     : f_(f), journal_(f.journal()), state_(SHAMapState::Modifying), type_(t)
 {
-    root_ = std::make_shared<SHAMapInnerNode>(cowid_);
+    root_ = make_shamapnode<SHAMapInnerNode>(cowid_);
 }
 
 // The `hash` parameter is unused. It is part of the interface so it's clear
@@ -64,7 +64,7 @@ SHAMap::SHAMap(SHAMapType t, Family& f)
 SHAMap::SHAMap(SHAMapType t, uint256 const& hash, Family& f)
     : f_(f), journal_(f.journal()), state_(SHAMapState::Synching), type_(t)
 {
-    root_ = std::make_shared<SHAMapInnerNode>(cowid_);
+    root_ = make_shamapnode<SHAMapInnerNode>(cowid_);
 }
 
 std::shared_ptr<SHAMap>
@@ -110,7 +110,7 @@ SHAMap::dirtyUp(
     while (!stack.empty())
     {
         auto node =
-            std::dynamic_pointer_cast<SHAMapInnerNode>(stack.top().first);
+            boost::dynamic_pointer_cast<SHAMapInnerNode>(stack.top().first);
         SHAMapNodeID nodeID = stack.top().second;
         stack.pop();
         assert(node != nullptr);
@@ -137,7 +137,7 @@ SHAMap::walkTowardsKey(uint256 const& id, SharedPtrNodeStack* stack) const
         if (stack != nullptr)
             stack->push({inNode, nodeID});
 
-        auto const inner = std::static_pointer_cast<SHAMapInnerNode>(inNode);
+        auto const inner = boost::static_pointer_cast<SHAMapInnerNode>(inNode);
         auto const branch = selectBranch(nodeID, id);
         if (inner->isEmptyBranch(branch))
             return nullptr;
@@ -292,7 +292,7 @@ SHAMap::descendThrow(SHAMapInnerNode* parent, int branch) const
 }
 
 shamaptreenode_ptr
-SHAMap::descendThrow(std::shared_ptr<SHAMapInnerNode> const& parent, int branch)
+SHAMap::descendThrow(shamapnode_ptr<SHAMapInnerNode> const& parent, int branch)
     const
 {
     shamaptreenode_ptr ret = descend(parent, branch);
@@ -320,7 +320,7 @@ SHAMap::descend(SHAMapInnerNode* parent, int branch) const
 }
 
 shamaptreenode_ptr
-SHAMap::descend(std::shared_ptr<SHAMapInnerNode> const& parent, int branch)
+SHAMap::descend(shamapnode_ptr<SHAMapInnerNode> const& parent, int branch)
     const
 {
     shamaptreenode_ptr node = parent->getChild(branch);
@@ -339,7 +339,7 @@ SHAMap::descend(std::shared_ptr<SHAMapInnerNode> const& parent, int branch)
 // but doesn't hook it up.
 shamaptreenode_ptr
 SHAMap::descendNoStore(
-    std::shared_ptr<SHAMapInnerNode> const& parent,
+    shamapnode_ptr<SHAMapInnerNode> const& parent,
     int branch) const
 {
     shamaptreenode_ptr ret = parent->getChild(branch);
@@ -421,8 +421,8 @@ SHAMap::descendAsync(
 }
 
 template <class Node>
-std::shared_ptr<Node>
-SHAMap::unshareNode(std::shared_ptr<Node> node, SHAMapNodeID const& nodeID)
+shamapnode_ptr<Node>
+SHAMap::unshareNode(shamapnode_ptr<Node> node, SHAMapNodeID const& nodeID)
 {
     // make sure the node is suitable for the intended operation (copy on write)
     assert(node->cowid() <= cowid_);
@@ -430,7 +430,7 @@ SHAMap::unshareNode(std::shared_ptr<Node> node, SHAMapNodeID const& nodeID)
     {
         // have a CoW
         assert(state_ != SHAMapState::Immutable);
-        node = std::static_pointer_cast<Node>(node->clone(cowid_));
+        node = boost::static_pointer_cast<Node>(node->clone(cowid_));
         if (nodeID.isRoot())
             root_ = node;
     }
@@ -448,11 +448,11 @@ SHAMap::belowHelper(
     auto& [init, cmp, incr] = loopParams;
     if (node->isLeaf())
     {
-        auto n = std::static_pointer_cast<SHAMapLeafNode>(node);
+        auto n = boost::static_pointer_cast<SHAMapLeafNode>(node);
         stack.push({node, {leafDepth, n->peekItem()->key()}});
         return n.get();
     }
-    auto inner = std::static_pointer_cast<SHAMapInnerNode>(node);
+    auto inner = boost::static_pointer_cast<SHAMapInnerNode>(node);
     if (stack.empty())
         stack.push({inner, SHAMapNodeID{}});
     else
@@ -465,11 +465,11 @@ SHAMap::belowHelper(
             assert(!stack.empty());
             if (node->isLeaf())
             {
-                auto n = std::static_pointer_cast<SHAMapLeafNode>(node);
+                auto n = boost::static_pointer_cast<SHAMapLeafNode>(node);
                 stack.push({n, {leafDepth, n->peekItem()->key()}});
                 return n.get();
             }
-            inner = std::static_pointer_cast<SHAMapInnerNode>(node);
+            inner = boost::static_pointer_cast<SHAMapInnerNode>(node);
             stack.push({inner, stack.top().second.getChildNodeID(branch)});
             i = init;  // descend and reset loop
         }
@@ -564,7 +564,7 @@ SHAMap::peekNextItem(uint256 const& id, SharedPtrNodeStack& stack) const
     {
         auto [node, nodeID] = stack.top();
         assert(!node->isLeaf());
-        auto inner = std::static_pointer_cast<SHAMapInnerNode>(node);
+        auto inner = boost::static_pointer_cast<SHAMapInnerNode>(node);
         for (auto i = selectBranch(nodeID, id) + 1; i < branchFactor; ++i)
         {
             if (!inner->isEmptyBranch(i))
@@ -623,7 +623,7 @@ SHAMap::upper_bound(uint256 const& id) const
         }
         else
         {
-            auto inner = std::static_pointer_cast<SHAMapInnerNode>(node);
+            auto inner = boost::static_pointer_cast<SHAMapInnerNode>(node);
             for (auto branch = selectBranch(nodeID, id) + 1;
                  branch < branchFactor;
                  ++branch)
@@ -660,7 +660,7 @@ SHAMap::lower_bound(uint256 const& id) const
         }
         else
         {
-            auto inner = std::static_pointer_cast<SHAMapInnerNode>(node);
+            auto inner = boost::static_pointer_cast<SHAMapInnerNode>(node);
             for (int branch = selectBranch(nodeID, id) - 1; branch >= 0;
                  --branch)
             {
@@ -699,7 +699,7 @@ SHAMap::delItem(uint256 const& id)
     if (stack.empty())
         Throw<SHAMapMissingNode>(type_, id);
 
-    auto leaf = std::dynamic_pointer_cast<SHAMapLeafNode>(stack.top().first);
+    auto leaf = boost::dynamic_pointer_cast<SHAMapLeafNode>(stack.top().first);
     stack.pop();
 
     if (!leaf || (leaf->peekItem()->key() != id))
@@ -714,7 +714,7 @@ SHAMap::delItem(uint256 const& id)
     while (!stack.empty())
     {
         auto node =
-            std::static_pointer_cast<SHAMapInnerNode>(stack.top().first);
+            boost::static_pointer_cast<SHAMapInnerNode>(stack.top().first);
         SHAMapNodeID nodeID = stack.top().second;
         stack.pop();
 
@@ -787,7 +787,7 @@ SHAMap::addGiveItem(
 
     if (node->isLeaf())
     {
-        auto leaf = std::static_pointer_cast<SHAMapLeafNode>(node);
+        auto leaf = boost::static_pointer_cast<SHAMapLeafNode>(node);
         if (leaf->peekItem()->key() == tag)
             return false;
     }
@@ -795,7 +795,7 @@ SHAMap::addGiveItem(
     if (node->isInner())
     {
         // easy case, we end on an inner node
-        auto inner = std::static_pointer_cast<SHAMapInnerNode>(node);
+        auto inner = boost::static_pointer_cast<SHAMapInnerNode>(node);
         int branch = selectBranch(nodeID, tag);
         assert(inner->isEmptyBranch(branch));
         auto newNode = makeTypedLeaf(type, std::move(item), cowid_);
@@ -805,11 +805,11 @@ SHAMap::addGiveItem(
     {
         // this is a leaf node that has to be made an inner node holding two
         // items
-        auto leaf = std::static_pointer_cast<SHAMapLeafNode>(node);
+        auto leaf = boost::static_pointer_cast<SHAMapLeafNode>(node);
         auto otherItem = leaf->peekItem();
         assert(otherItem && (tag != otherItem->key()));
 
-        node = std::make_shared<SHAMapInnerNode>(node->cowid());
+        node = make_shamapnode<SHAMapInnerNode>(node->cowid());
 
         unsigned int b1, b2;
 
@@ -821,7 +821,7 @@ SHAMap::addGiveItem(
             // we need a new inner node, since both go on same branch at this
             // level
             nodeID = nodeID.getChildNodeID(b1);
-            node = std::make_shared<SHAMapInnerNode>(cowid_);
+            node = make_shamapnode<SHAMapInnerNode>(cowid_);
         }
 
         // we can add the two leaf nodes here
@@ -872,7 +872,7 @@ SHAMap::updateGiveItem(
     if (stack.empty())
         Throw<SHAMapMissingNode>(type_, tag);
 
-    auto node = std::dynamic_pointer_cast<SHAMapLeafNode>(stack.top().first);
+    auto node = boost::dynamic_pointer_cast<SHAMapLeafNode>(stack.top().first);
     auto nodeID = stack.top().second;
     stack.pop();
 
@@ -961,8 +961,8 @@ SHAMap::writeNode(NodeObjectType t, shamaptreenode_ptr node) const
 // pointer to because flushing modifies inner nodes -- it
 // makes them point to canonical/shared nodes.
 template <class Node>
-std::shared_ptr<Node>
-SHAMap::preFlushNode(std::shared_ptr<Node> node) const
+shamapnode_ptr<Node>
+SHAMap::preFlushNode(shamapnode_ptr<Node> node) const
 {
     // A shared node should never need to be flushed
     // because that would imply someone modified it
@@ -972,7 +972,7 @@ SHAMap::preFlushNode(std::shared_ptr<Node> node) const
     {
         // Node is not uniquely ours, so unshare it before
         // possibly modifying it
-        node = std::static_pointer_cast<Node>(node->clone(cowid_));
+        node = boost::static_pointer_cast<Node>(node->clone(cowid_));
     }
     return node;
 }
@@ -1013,17 +1013,17 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
         return 1;
     }
 
-    auto node = std::static_pointer_cast<SHAMapInnerNode>(root_);
+    auto node = boost::static_pointer_cast<SHAMapInnerNode>(root_);
 
     if (node->isEmpty())
     {  // replace empty root with a new empty root
-        root_ = std::make_shared<SHAMapInnerNode>(0);
+        root_ = make_shamapnode<SHAMapInnerNode>(0);
         return 1;
     }
 
     // Stack of {parent,index,child} pointers representing
     // inner nodes we are in the process of flushing
-    using StackEntry = std::pair<std::shared_ptr<SHAMapInnerNode>, int>;
+    using StackEntry = std::pair<shamapnode_ptr<SHAMapInnerNode>, int>;
     std::stack<StackEntry, std::vector<StackEntry>> stack;
 
     node = preFlushNode(std::move(node));
@@ -1060,7 +1060,7 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
                         // The semantics of this changes when we move to c++-20
                         // Right now no move will occur; With c++-20 child will
                         // be moved from.
-                        node = std::static_pointer_cast<SHAMapInnerNode>(
+                        node = boost::static_pointer_cast<SHAMapInnerNode>(
                             std::move(child));
                         pos = 0;
                     }
@@ -1089,7 +1089,7 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
         node->unshare();
 
         if (doWrite)
-            node = std::static_pointer_cast<SHAMapInnerNode>(
+            node = boost::static_pointer_cast<SHAMapInnerNode>(
                 writeNode(t, std::move(node)));
 
         ++flushed;

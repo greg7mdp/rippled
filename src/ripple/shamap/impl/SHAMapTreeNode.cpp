@@ -46,9 +46,9 @@ SHAMapTreeNode::makeTransaction(
         sha512Half(HashPrefix::transactionID, data), data);
 
     if (hashValid)
-        return std::make_shared<SHAMapTxLeafNode>(std::move(item), 0, hash);
+        return make_shamapnode<SHAMapTxLeafNode>(std::move(item), 0, hash);
 
-    return std::make_shared<SHAMapTxLeafNode>(std::move(item), 0);
+    return make_shamapnode<SHAMapTxLeafNode>(std::move(item), 0);
 }
 
 shamaptreenode_ptr
@@ -74,10 +74,10 @@ SHAMapTreeNode::makeTransactionWithMeta(
     auto item = make_shamapitem(tag, s.slice());
 
     if (hashValid)
-        return std::make_shared<SHAMapTxPlusMetaLeafNode>(
+        return make_shamapnode<SHAMapTxPlusMetaLeafNode>(
             std::move(item), 0, hash);
 
-    return std::make_shared<SHAMapTxPlusMetaLeafNode>(std::move(item), 0);
+    return make_shamapnode<SHAMapTxPlusMetaLeafNode>(std::move(item), 0);
 }
 
 shamaptreenode_ptr
@@ -106,10 +106,10 @@ SHAMapTreeNode::makeAccountState(
     auto item = make_shamapitem(tag, s.slice());
 
     if (hashValid)
-        return std::make_shared<SHAMapAccountStateLeafNode>(
+        return make_shamapnode<SHAMapAccountStateLeafNode>(
             std::move(item), 0, hash);
 
-    return std::make_shared<SHAMapAccountStateLeafNode>(std::move(item), 0);
+    return make_shamapnode<SHAMapAccountStateLeafNode>(std::move(item), 0);
 }
 
 shamaptreenode_ptr

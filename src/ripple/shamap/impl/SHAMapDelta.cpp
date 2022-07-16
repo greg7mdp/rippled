@@ -255,14 +255,14 @@ SHAMap::walkMap(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing)
     if (!root_->isInner())  // root_ is only node, and we have it
         return;
 
-    using StackEntry = std::shared_ptr<SHAMapInnerNode>;
+    using StackEntry = shamapnode_ptr<SHAMapInnerNode>;
     std::stack<StackEntry, std::vector<StackEntry>> nodeStack;
 
-    nodeStack.push(std::static_pointer_cast<SHAMapInnerNode>(root_));
+    nodeStack.push(boost::static_pointer_cast<SHAMapInnerNode>(root_));
 
     while (!nodeStack.empty())
     {
-        std::shared_ptr<SHAMapInnerNode> node = std::move(nodeStack.top());
+        shamapnode_ptr<SHAMapInnerNode> node = std::move(nodeStack.top());
         nodeStack.pop();
 
         for (int i = 0; i < 16; ++i)
@@ -276,7 +276,7 @@ SHAMap::walkMap(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing)
                 {
                     if (nextNode->isInner())
                         nodeStack.push(
-                            std::static_pointer_cast<SHAMapInnerNode>(
+                            boost::static_pointer_cast<SHAMapInnerNode>(
                                 nextNode));
                 }
                 else
@@ -298,11 +298,11 @@ SHAMap::walkMapParallel(
     if (!root_->isInner())  // root_ is only node, and we have it
         return false;
 
-    using StackEntry = std::shared_ptr<SHAMapInnerNode>;
+    using StackEntry = shamapnode_ptr<SHAMapInnerNode>;
     std::array<shamaptreenode_ptr, 16> topChildren;
     {
         auto const& innerRoot =
-            std::static_pointer_cast<SHAMapInnerNode>(root_);
+            boost::static_pointer_cast<SHAMapInnerNode>(root_);
         for (int i = 0; i < 16; ++i)
         {
             if (!innerRoot->isEmptyBranch(i))
@@ -327,7 +327,7 @@ SHAMap::walkMapParallel(
             continue;
 
         nodeStacks[rootChildIndex].push(
-            std::static_pointer_cast<SHAMapInnerNode>(child));
+            boost::static_pointer_cast<SHAMapInnerNode>(child));
 
         JLOG(journal_.debug()) << "starting worker " << rootChildIndex;
         workers.push_back(std::thread(
@@ -337,7 +337,7 @@ SHAMap::walkMapParallel(
                 {
                     while (!nodeStack.empty())
                     {
-                        std::shared_ptr<SHAMapInnerNode> node =
+                        shamapnode_ptr<SHAMapInnerNode> node =
                             std::move(nodeStack.top());
                         assert(node);
                         nodeStack.pop();
@@ -352,7 +352,7 @@ SHAMap::walkMapParallel(
                             if (nextNode)
                             {
                                 if (nextNode->isInner())
-                                    nodeStack.push(std::static_pointer_cast<
+                                    nodeStack.push(boost::static_pointer_cast<
                                                    SHAMapInnerNode>(nextNode));
                             }
                             else

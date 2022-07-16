@@ -46,10 +46,10 @@ SHAMap::visitNodes(std::function<bool(SHAMapTreeNode&)> const& function) const
     if (!root_->isInner())
         return;
 
-    using StackEntry = std::pair<int, std::shared_ptr<SHAMapInnerNode>>;
+    using StackEntry = std::pair<int, shamapnode_ptr<SHAMapInnerNode>>;
     std::stack<StackEntry, std::vector<StackEntry>> stack;
 
-    auto node = std::static_pointer_cast<SHAMapInnerNode>(root_);
+    auto node = boost::static_pointer_cast<SHAMapInnerNode>(root_);
     int pos = 0;
 
     while (true)
@@ -78,7 +78,7 @@ SHAMap::visitNodes(std::function<bool(SHAMapTreeNode&)> const& function) const
                     }
 
                     // descend to the child's first position
-                    node = std::static_pointer_cast<SHAMapInnerNode>(child);
+                    node = boost::static_pointer_cast<SHAMapInnerNode>(child);
                     pos = 0;
                 }
             }
@@ -114,7 +114,7 @@ SHAMap::visitDifferences(
 
     if (root_->isLeaf())
     {
-        auto leaf = std::static_pointer_cast<SHAMapLeafNode>(root_);
+        auto leaf = boost::static_pointer_cast<SHAMapLeafNode>(root_);
         if (!have ||
             !have->hasLeafNode(leaf->peekItem()->key(), leaf->getHash()))
             function(*root_);
@@ -326,7 +326,7 @@ SHAMap::getMissingNodes(int max, SHAMapSyncFilter* filter)
         f_.getFullBelowCache(ledgerSeq_)->getGeneration());
 
     if (!root_->isInner() ||
-        std::static_pointer_cast<SHAMapInnerNode>(root_)->isFullBelow(
+        boost::static_pointer_cast<SHAMapInnerNode>(root_)->isFullBelow(
             mn.generation_))
     {
         clearSynching();
@@ -800,7 +800,7 @@ SHAMap::getProofPath(uint256 const& key) const
     }
 
     if (auto const& node = stack.top().first; !node || node->isInner() ||
-        std::static_pointer_cast<SHAMapLeafNode>(node)->peekItem()->key() !=
+        boost::static_pointer_cast<SHAMapLeafNode>(node)->peekItem()->key() !=
             key)
     {
         JLOG(journal_.debug()) << "no path to " << key;

@@ -24,7 +24,11 @@
 
 namespace ripple {
 
-using TreeNodeCache = TaggedCache<uint256, SHAMapTreeNode>;
+#ifndef SHAMAP_INTR_PTR
+    using TreeNodeCache = TaggedCache<uint256, SHAMapTreeNode>;
+#else
+    using TreeNodeCache = TaggedCacheIntr<uint256, SHAMapTreeNode>;
+#endif
 
 }  // namespace ripple
 

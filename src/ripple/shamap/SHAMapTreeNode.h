@@ -20,9 +20,13 @@
 #ifndef RIPPLE_SHAMAP_SHAMAPTREENODE_H_INCLUDED
 #define RIPPLE_SHAMAP_SHAMAPTREENODE_H_INCLUDED
 
+#include <boost/smart_ptr/intrusive_ptr.hpp>
+#include <boost/smart_ptr/intrusive_ref_counter.hpp>
+#include <boost/pointer_cast.hpp>
+
 #include <ripple/basics/CountedObject.h>
 #include <ripple/basics/SHAMapHash.h>
-#include <ripple/basics/TaggedCache.h>
+#include <ripple/basics/TaggedCacheIntr.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/protocol/Serializer.h>
 #include <ripple/shamap/SHAMapItem.h>
@@ -52,9 +56,33 @@ enum class SHAMapNodeType {
 
 class SHAMapTreeNode;
 
-using shamaptreenode_ptr = std::shared_ptr<SHAMapTreeNode>;
+#ifndef SHAMAP_INTR_PTR
 
-class SHAMapTreeNode
+template<class T>
+using shamapnode_ptr = std::shared_ptr<T>;
+
+template <class T, class... Args>
+auto make_shamapnode(Args&&... args)
+{
+    return std::make_shared<T>(std::forward<Args>(args)...);
+}
+
+#else
+
+template<class T>
+using shamapnode_ptr = boost::intrusive_ptr<T>;
+    
+template <class T, class... Args>
+auto make_shamapnode(Args&&... args)
+{
+    return new T(std::forward<Args>(args)...);
+}
+
+#endif
+
+    using shamaptreenode_ptr = shamapnode_ptr<SHAMapTreeNode>;
+    
+class SHAMapTreeNode : public boost::intrusive_ref_counter<SHAMapTreeNode> 
 {
 protected:
     SHAMapHash hash_;
