@@ -269,7 +269,7 @@ SHAMap::walkMap(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing)
         {
             if (!node->isEmptyBranch(i))
             {
-                std::shared_ptr<SHAMapTreeNode> nextNode =
+                shamaptreenode_ptr nextNode =
                     descendNoStore(node, i);
 
                 if (nextNode)
@@ -299,7 +299,7 @@ SHAMap::walkMapParallel(
         return false;
 
     using StackEntry = std::shared_ptr<SHAMapInnerNode>;
-    std::array<std::shared_ptr<SHAMapTreeNode>, 16> topChildren;
+    std::array<shamaptreenode_ptr, 16> topChildren;
     {
         auto const& innerRoot =
             std::static_pointer_cast<SHAMapInnerNode>(root_);
@@ -346,7 +346,7 @@ SHAMap::walkMapParallel(
                         {
                             if (node->isEmptyBranch(i))
                                 continue;
-                            std::shared_ptr<SHAMapTreeNode> nextNode =
+                            shamaptreenode_ptr nextNode =
                                 descendNoStore(node, i);
 
                             if (nextNode)

@@ -36,7 +36,7 @@
 
 namespace ripple {
 
-std::shared_ptr<SHAMapTreeNode>
+shamaptreenode_ptr
 SHAMapTreeNode::makeTransaction(
     Slice data,
     SHAMapHash const& hash,
@@ -51,7 +51,7 @@ SHAMapTreeNode::makeTransaction(
     return std::make_shared<SHAMapTxLeafNode>(std::move(item), 0);
 }
 
-std::shared_ptr<SHAMapTreeNode>
+shamaptreenode_ptr
 SHAMapTreeNode::makeTransactionWithMeta(
     Slice data,
     SHAMapHash const& hash,
@@ -80,7 +80,7 @@ SHAMapTreeNode::makeTransactionWithMeta(
     return std::make_shared<SHAMapTxPlusMetaLeafNode>(std::move(item), 0);
 }
 
-std::shared_ptr<SHAMapTreeNode>
+shamaptreenode_ptr
 SHAMapTreeNode::makeAccountState(
     Slice data,
     SHAMapHash const& hash,
@@ -112,7 +112,7 @@ SHAMapTreeNode::makeAccountState(
     return std::make_shared<SHAMapAccountStateLeafNode>(std::move(item), 0);
 }
 
-std::shared_ptr<SHAMapTreeNode>
+shamaptreenode_ptr
 SHAMapTreeNode::makeFromWire(Slice rawNode)
 {
     if (rawNode.empty())
@@ -144,7 +144,7 @@ SHAMapTreeNode::makeFromWire(Slice rawNode)
         "wire: Unknown type (" + std::to_string(type) + ")");
 }
 
-std::shared_ptr<SHAMapTreeNode>
+shamaptreenode_ptr
 SHAMapTreeNode::makeFromPrefix(Slice rawNode, SHAMapHash const& hash)
 {
     if (rawNode.size() < 4)

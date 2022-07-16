@@ -113,7 +113,7 @@ public:
     operator=(SHAMapInnerNode const&) = delete;
     ~SHAMapInnerNode();
 
-    std::shared_ptr<SHAMapTreeNode>
+    shamaptreenode_ptr
     clone(std::uint32_t cowid) const override;
 
     SHAMapNodeType
@@ -147,19 +147,19 @@ public:
     getChildHash(int m) const;
 
     void
-    setChild(int m, std::shared_ptr<SHAMapTreeNode> const& child);
+    setChild(int m, shamaptreenode_ptr const& child);
 
     void
-    shareChild(int m, std::shared_ptr<SHAMapTreeNode> const& child);
+    shareChild(int m, shamaptreenode_ptr const& child);
 
     SHAMapTreeNode*
     getChildPointer(int branch);
 
-    std::shared_ptr<SHAMapTreeNode>
+    shamaptreenode_ptr
     getChild(int branch);
 
-    std::shared_ptr<SHAMapTreeNode>
-    canonicalizeChild(int branch, std::shared_ptr<SHAMapTreeNode> node);
+    shamaptreenode_ptr
+    canonicalizeChild(int branch, shamaptreenode_ptr node);
 
     // sync functions
     bool
@@ -187,10 +187,10 @@ public:
     void
     invariants(bool is_root = false) const override;
 
-    static std::shared_ptr<SHAMapTreeNode>
+    static shamaptreenode_ptr
     makeFullInner(Slice data, SHAMapHash const& hash, bool hashValid);
 
-    static std::shared_ptr<SHAMapTreeNode>
+    static shamaptreenode_ptr
     makeCompressedInner(Slice data);
 };
 

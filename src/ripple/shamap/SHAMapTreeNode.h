@@ -50,6 +50,10 @@ enum class SHAMapNodeType {
     tnACCOUNT_STATE = 4
 };
 
+class SHAMapTreeNode;
+
+using shamaptreenode_ptr = std::shared_ptr<SHAMapTreeNode>;
+
 class SHAMapTreeNode
 {
 protected:
@@ -130,7 +134,7 @@ public:
     }
 
     /** Make a copy of this node, setting the owner. */
-    virtual std::shared_ptr<SHAMapTreeNode>
+    virtual shamaptreenode_ptr
     clone(std::uint32_t cowid) const = 0;
     /** @} */
 
@@ -171,20 +175,20 @@ public:
     virtual void
     invariants(bool is_root = false) const = 0;
 
-    static std::shared_ptr<SHAMapTreeNode>
+    static shamaptreenode_ptr
     makeFromPrefix(Slice rawNode, SHAMapHash const& hash);
 
-    static std::shared_ptr<SHAMapTreeNode>
+    static shamaptreenode_ptr
     makeFromWire(Slice rawNode);
 
 private:
-    static std::shared_ptr<SHAMapTreeNode>
+    static shamaptreenode_ptr
     makeTransaction(Slice data, SHAMapHash const& hash, bool hashValid);
 
-    static std::shared_ptr<SHAMapTreeNode>
+    static shamaptreenode_ptr
     makeAccountState(Slice data, SHAMapHash const& hash, bool hashValid);
 
-    static std::shared_ptr<SHAMapTreeNode>
+    static shamaptreenode_ptr
     makeTransactionWithMeta(Slice data, SHAMapHash const& hash, bool hashValid);
 };
 

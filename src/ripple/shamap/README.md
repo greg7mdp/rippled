@@ -193,7 +193,7 @@ continues, unless the path indicates a child that does not exist.  And in this
 case, `nullptr` is returned to indicate no leaf node along the given path
 exists.  Otherwise a leaf node is found and a (non-owning) pointer to it is
 returned.  At each step, if a stack is requested, a
-`pair<shared_ptr<SHAMapTreeNode>, SHAMapNodeID>` is pushed onto the stack.
+`pair<shamaptreenode_ptr, SHAMapNodeID>` is pushed onto the stack.
 
 When a child node is found by `selectBranch`, the traversal to that node
 consists of two steps:
@@ -259,7 +259,7 @@ that these two `SHAMap`s will share the same `TreeNodeCache`.
 ## `TreeNodeCache` ##
 
 The `TreeNodeCache` is a `std::unordered_map` keyed on the hash of the
-`SHAMap` node.  The stored type consists of `shared_ptr<SHAMapTreeNode>`,
+`SHAMap` node.  The stored type consists of `shamaptreenode_ptr`,
 `weak_ptr<SHAMapTreeNode>`, and a time point indicating the most recent
 access of this node in the cache.  The time point is based on
 `std::chrono::steady_clock`.

@@ -37,7 +37,7 @@ namespace ripple {
 
     The "pointer" part points to to the equivalent to an array of
     `SHAMapHash` followed immediately by an array of
-    `shared_ptr<SHAMapTreeNode>`. The sizes of these arrays are
+    `shamaptreenode_ptr`. The sizes of these arrays are
     determined by the tag. The tag is an index into an array (`boundaries`,
     defined in the cpp file) that specifies the size. Both arrays are the
     same size. Note that the sizes may be smaller than the full 16 elements
@@ -169,7 +169,7 @@ public:
         of each array.
     */
     [[nodiscard]] std::
-        tuple<std::uint8_t, SHAMapHash*, std::shared_ptr<SHAMapTreeNode>*>
+        tuple<std::uint8_t, SHAMapHash*, shamaptreenode_ptr*>
         getHashesAndChildren() const;
 
     /** Get the `hashes` array */
@@ -177,7 +177,7 @@ public:
     getHashes() const;
 
     /** Get the `children` array */
-    [[nodiscard]] std::shared_ptr<SHAMapTreeNode>*
+    [[nodiscard]] shamaptreenode_ptr*
     getChildren() const;
 
     /** Call the `f` callback for all 16 (branchFactor) branches - even if

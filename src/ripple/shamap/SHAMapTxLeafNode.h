@@ -50,7 +50,7 @@ public:
     {
     }
 
-    std::shared_ptr<SHAMapTreeNode>
+    shamaptreenode_ptr
     clone(std::uint32_t cowid) const final override
     {
         return std::make_shared<SHAMapTxLeafNode>(item_, cowid, hash_);
