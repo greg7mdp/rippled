@@ -281,7 +281,7 @@ public:
         if (entry.isCached())
         {
             --m_cache_count;
-            entry.ptr.reset();
+            entry.unCache();
             ret = true;
         }
 
@@ -618,6 +618,15 @@ private:
             return ptr != nullptr;
         }
         bool
+        reCache()
+        {
+            ptr = lock();
+        }
+        void unCache()
+        {
+            ptr.reset();
+        }
+        bool
         isExpired() const
         {
             return weak_ptr.expired();
@@ -626,6 +635,11 @@ private:
         lock()
         {
             return weak_ptr.lock();
+        }
+        std::shared_ptr<mapped_type>
+        cachedPtr()
+        {
+            return ptr;
         }
         void
         touch(clock_type::time_point const& now)
@@ -686,14 +700,14 @@ private:
                         ++cacheRemovals;
                         if (cit->second.ptr.unique())
                         {
-                            stuffToSweep.push_back(cit->second.ptr);
+                            stuffToSweep.push_back(std::move(cit->second.ptr));
                             ++mapRemovals;
                             cit = partition.erase(cit);
                         }
                         else
                         {
                             // remains weakly cached
-                            cit->second.ptr.reset();
+                            cit->second.unCache();
                             ++cit;
                         }
                     }

@@ -289,7 +289,7 @@ public:
         if (entry.isCached())
         {
             --m_cache_count;
-            entry.ptr.reset();
+            entry.unCache();
             ret = true;
         }
 
@@ -313,11 +313,12 @@ public:
         @return `true` If the key already existed.
     */
 public:
+    template <class F>
     bool
     canonicalize(
         const key_type& key,
         boost::intrusive_ptr<T>& data,
-        std::function<bool(boost::intrusive_ptr<T> const&)>&& replace)
+        F& replace)
     {
         // Return canonical value, store if needed, refresh in cache
         // Return values: true=we had the data already
@@ -340,37 +341,35 @@ public:
 
         if (entry.isCached())
         {
-            if (replace(entry.ptr))
+            if (replace(entry.cachedPtr().get()))
             {
-                entry.ptr = data;
+                entry.setCachedPtr(data);
             }
             else
             {
-                data = entry.ptr;
+                data = entry.cachedPtr();
             }
 
             return true;
         }
 
-        auto cachedData = entry.lock();
-
-        if (cachedData)
+        if (!entry.isExpired())
         {
-            if (replace(entry.ptr))
+            if (replace(entry.cachedPtr().get()))
             {
-                entry.ptr = data;
+                entry.setCachedPtr(data);
             }
             else
             {
-                entry.ptr = cachedData;
-                data = cachedData;
+                data =  entry.cachedPtr();
             }
-
+            entry.reCache();
             ++m_cache_count;
             return true;
         }
 
-        entry.ptr = data;
+        entry.setCachedPtr(data);
+        entry.reCache();
         ++m_cache_count;
 
         return false;
@@ -382,16 +381,17 @@ public:
         boost::intrusive_ptr<T> const& data)
     {
         return canonicalize(
-            key,
-            const_cast<boost::intrusive_ptr<T>&>(data),
-            [](boost::intrusive_ptr<T> const&) { return true; });
+            key, const_cast<boost::intrusive_ptr<T>&>(data), [](T*) {
+                return true;
+            });
     }
 
     bool
-    canonicalize_replace_client(const key_type& key, boost::intrusive_ptr<T>& data)
+    canonicalize_replace_client(
+        const key_type& key,
+        boost::intrusive_ptr<T>& data)
     {
-        return canonicalize(
-            key, data, [](boost::intrusive_ptr<T> const&) { return false; });
+        return canonicalize(key, data, [](T*) { return false; });
     }
 
     boost::intrusive_ptr<T>
@@ -428,7 +428,7 @@ public:
             std::forward_as_tuple(key),
             std::forward_as_tuple(now));
         if (!inserted)
-            it->second.last_access = now;
+            it->second.lastAccess() = now;
         return inserted;
     }
 
@@ -525,15 +525,16 @@ private:
         {
             ++m_hits;
             entry.touch(m_clock.now());
-            return entry.ptr;
+            return entry.cachedPtr();
         }
-        entry.ptr = entry.lock();
-        if (entry.isCached())
+        // if some shamap still has a pointer to this entry, unweaken it
+        if (!entry.isExpired())
         {
+            entry.reCache();
             // independent of cache size, so not counted as a hit
             ++m_cache_count;
             entry.touch(m_clock.now());
-            return entry.ptr;
+            return entry.cachedPtr();
         }
 
         m_cache.erase(cit);
@@ -600,36 +601,60 @@ private:
 
     class ValueEntry
     {
-    public:
         boost::intrusive_ptr<mapped_type> ptr;
         clock_type::time_point last_access;
+        bool weak;
+    public:
 
         ValueEntry(
             clock_type::time_point const& last_access_,
             boost::intrusive_ptr<mapped_type> const& ptr_)
-            : ptr(ptr_), last_access(last_access_)
+            : ptr(ptr_), last_access(last_access_), weak(false)
         {
         }
 
+        clock_type::time_point&
+        lastAccess()
+        {
+            return last_access;
+        }
         bool
         isWeak() const
         {
-            return !ptr || ptr->use_count() == 1;
+            return weak;
         }
         bool
         isCached() const
         {
-            return !isWeak();
+            return !weak;
+        }
+        void
+        reCache()
+        {
+            weak = false;
+        }
+        void unCache()
+        {
+            weak = true;
         }
         bool
         isExpired() const
         {
-            return isWeak();
+            return ptr->use_count() == 1;
         }
-        boost::intrusive_ptr<mapped_type>
+        boost::intrusive_ptr<mapped_type>&
         lock()
         {
             return ptr;
+        }
+        boost::intrusive_ptr<mapped_type>&
+        cachedPtr()
+        {
+            return ptr;
+        }
+        void setCachedPtr(boost::intrusive_ptr<T>& data)
+        {
+            ptr = data;
         }
         void
         touch(clock_type::time_point const& now)
@@ -676,7 +701,9 @@ private:
                         // weak
                         if (cit->second.isExpired())
                         {
+                            // no outside references exist
                             ++mapRemovals;
+                            stuffToSweep.push_back(std::move(cit->second.cachedPtr()));
                             cit = partition.erase(cit);
                         }
                         else
@@ -684,20 +711,21 @@ private:
                             ++cit;
                         }
                     }
-                    else if (cit->second.last_access <= when_expire)
+                    else if (cit->second.lastAccess() <= when_expire)
                     {
                         // strong, expired
                         ++cacheRemovals;
-                        if (cit->second.ptr && cit->second.ptr->use_count() == 1)
+                        if (cit->second.isExpired())
                         {
-                            stuffToSweep.push_back(cit->second.ptr);
+                            // but no outside references exist
                             ++mapRemovals;
+                            stuffToSweep.push_back(std::move(cit->second.cachedPtr()));
                             cit = partition.erase(cit);
                         }
                         else
                         {
                             // remains weakly cached
-                            cit->second.ptr.reset();
+                            cit->second.unCache();
                             ++cit;
                         }
                     }
@@ -741,12 +769,12 @@ private:
                 auto cit = partition.begin();
                 while (cit != partition.end())
                 {
-                    if (cit->second.last_access > now)
+                    if (cit->second.lastAccess() > now)
                     {
-                        cit->second.last_access = now;
+                        cit->second.lastAccess() = now;
                         ++cit;
                     }
-                    else if (cit->second.last_access <= when_expire)
+                    else if (cit->second.lastAccess() <= when_expire)
                     {
                         cit = partition.erase(cit);
                     }
