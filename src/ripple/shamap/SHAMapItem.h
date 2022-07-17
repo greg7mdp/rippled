@@ -110,56 +110,7 @@ using shamapitem_ptr = boost::intrusive_ptr<SHAMapItem const>;
 
 namespace detail {
 
-constexpr size_t num_slabs = 64;
-constexpr size_t slab_increment = 8;
-constexpr size_t slab_block_size = 4096;
-constexpr size_t max_slab_size = num_slabs * slab_increment;
-
-template<std::size_t... I>
-constexpr auto
-make_slab_helper(std::index_sequence<I...>) {
-    return std::tuple{new SlabAllocator<SHAMapItem, (I + 1) * slab_increment>(
-        slab_block_size)...};
-}
-
-inline auto slabs = make_slab_helper(std::make_index_sequence<num_slabs>{});
-
-template<std::size_t... I>
-constexpr auto
-make_allocators_helper(std::index_sequence<I...>) {
-    return std::array{
-        std::function{[] { return std::get<I>(slabs)->alloc(); }}...};
-}
-
-template<std::size_t... I>
-constexpr auto
-make_deallocators_helper(std::index_sequence<I...>) {
-    return std::array{std::function{
-        [](std::uint8_t const* p) { std::get<I>(slabs)->dealloc(p); }}...};
-}
-
-inline auto allocators =
-    make_allocators_helper(std::make_index_sequence<num_slabs>{});
-    
-inline auto deallocators =
-    make_deallocators_helper(std::make_index_sequence<num_slabs>{});
-
-inline size_t allocator_index(size_t sz)
-{
-    return sz ? (sz - 1) / slab_increment : 0;
-}
-        
-inline void deallocate(std::size_t sz, std::uint8_t const* p)
-{
-    assert(sz <= max_slab_size);
-    deallocators[allocator_index(sz)](p);
-}
-
-inline std::uint8_t *allocate(std::size_t sz)
-{
-    assert(sz <= max_slab_size);
-    return allocators[allocator_index(sz)]();
-}
+static inline SlabAllocators<SHAMapItem> slab_allocator;
 
 inline std::atomic<std::uint64_t> cnt64 = 0;
 
@@ -191,8 +142,8 @@ intrusive_ptr_release(SHAMapItem const* x)
         
         // At most one slab will claim this pointer; if none do, it was
         // allocated manually, so we free it manually.
-        if (sz <= detail::max_slab_size)
-            detail::deallocate(sz, p);
+        if (sz <= detail::slab_allocator.max_slab_size)
+            detail::slab_allocator.deallocate(sz, p);
         else
             delete [] p;
     }
@@ -205,8 +156,8 @@ make_shamapitem(uint256 const& tag, Slice data)
     assert(sz <= megabytes<std::size_t>(64));
     std::uint8_t* raw;
     
-    if (sz <= detail::max_slab_size)
-        raw = detail::allocate(sz);
+    if (sz <= detail::slab_allocator.max_slab_size)
+        raw = detail::slab_allocator.allocate(sz);
     else
     {
         // If we can't grab memory from the slab allocators, we fall back to
