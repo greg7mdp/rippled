@@ -31,6 +31,9 @@
 
 namespace ripple {
 
+namespace detail {
+
+    
 template <typename Type, std::size_t ExtraSize = 0>
 class SlabAllocator
 {
@@ -228,8 +231,80 @@ private:
                 return true;
         return false;
     }
+};
 
-    
+}  // namespace detail
+
+template <class T, size_t num_slabs = 64, size_t slab_increment = 8>
+class SlabAllocators
+{
+    template <std::size_t... I>
+    static constexpr auto
+    make_slab_helper(size_t slab_block_size, std::index_sequence<I...>)
+    {
+        return std::tuple{
+            new detail::SlabAllocator<SHAMapItem, (I + 1) * slab_increment>(
+                slab_block_size)...};
+    }
+
+private:
+    decltype(make_slab_helper(1, std::make_index_sequence<num_slabs>{})) slabs_;
+    std::array<std::function<std::uint8_t*()>, num_slabs> allocators_;
+    std::array<std::function<void(std::uint8_t const*)>, num_slabs>
+        deallocators_;
+
+public:
+    static constexpr size_t max_slab_size = num_slabs * slab_increment;
+
+    SlabAllocators(size_t slab_block_size = 4096)
+        : slabs_(make_slab_helper(
+              slab_block_size,
+              std::make_index_sequence<num_slabs>{}))
+        , allocators_(
+              make_allocators_helper(std::make_index_sequence<num_slabs>{}))
+        , deallocators_(
+              make_deallocators_helper(std::make_index_sequence<num_slabs>{}))
+
+    {
+    }
+
+    void
+    deallocate(std::size_t sz, std::uint8_t const* p)
+    {
+        assert(sz <= max_slab_size);
+        deallocators_[allocator_index(sz)](p);
+    }
+
+    std::uint8_t*
+    allocate(std::size_t sz)
+    {
+        assert(sz <= max_slab_size);
+        return allocators_[allocator_index(sz)]();
+    }
+
+private:
+    template <std::size_t... I>
+    constexpr auto
+    make_allocators_helper(std::index_sequence<I...>)
+    {
+        return std::array{
+            std::function{[this] { return std::get<I>(slabs_)->alloc(); }}...};
+    }
+
+    template <std::size_t... I>
+    constexpr auto
+    make_deallocators_helper(std::index_sequence<I...>)
+    {
+        return std::array{std::function{[this](std::uint8_t const* p) {
+            std::get<I>(slabs_)->dealloc(p);
+        }}...};
+    }
+
+    static constexpr size_t
+    allocator_index(size_t sz)
+    {
+        return sz ? (sz - 1) / slab_increment : 0;
+    }
 };
 
 }  // namespace ripple
