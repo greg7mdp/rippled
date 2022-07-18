@@ -617,7 +617,7 @@ private:
         {
             return ptr != nullptr;
         }
-        bool
+        void
         reCache()
         {
             ptr = lock();

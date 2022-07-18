@@ -318,7 +318,7 @@ public:
     canonicalize(
         const key_type& key,
         boost::intrusive_ptr<T>& data,
-        F& replace)
+        F&& replace)
     {
         // Return canonical value, store if needed, refresh in cache
         // Return values: true=we had the data already
@@ -341,7 +341,7 @@ public:
 
         if (entry.isCached())
         {
-            if (replace(entry.cachedPtr().get()))
+            if (std::forward<F>(replace)(entry.cachedPtr().get()))
             {
                 entry.setCachedPtr(data);
             }
@@ -355,7 +355,7 @@ public:
 
         if (!entry.isExpired())
         {
-            if (replace(entry.cachedPtr().get()))
+            if (std::forward<F>(replace)(entry.cachedPtr().get()))
             {
                 entry.setCachedPtr(data);
             }
