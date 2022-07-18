@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
+#include <functional>
 #include <mutex>
 
 namespace ripple {
@@ -235,7 +236,7 @@ private:
 
 }  // namespace detail
 
-template <class T, size_t num_slabs = 64, size_t slab_increment = 8>
+template <class T, size_t num_slabs = 32, size_t slab_increment = 16>
 class SlabAllocators
 {
     template <std::size_t... I>
@@ -243,12 +244,15 @@ class SlabAllocators
     make_slab_helper(size_t slab_block_size, std::index_sequence<I...>)
     {
         return std::tuple{
-            new detail::SlabAllocator<SHAMapItem, (I + 1) * slab_increment>(
+            new detail::SlabAllocator<T, (I + 1) * slab_increment>(
                 slab_block_size)...};
     }
 
+    using slab_tuple_t =
+        decltype(make_slab_helper(1, std::make_index_sequence<num_slabs>{}));
+
 private:
-    decltype(make_slab_helper(1, std::make_index_sequence<num_slabs>{})) slabs_;
+    slab_tuple_t slabs_;
     std::array<std::function<std::uint8_t*()>, num_slabs> allocators_;
     std::array<std::function<void(std::uint8_t const*)>, num_slabs>
         deallocators_;
