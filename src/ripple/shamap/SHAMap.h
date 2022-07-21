@@ -361,7 +361,7 @@ public:
 
 private:
     using SharedPtrNodeStack =
-        std::stack<std::pair<shamaptreenode_ptr, SHAMapNodeID>>;
+        std::vector<std::pair<shamaptreenode_ptr, SHAMapNodeID>>;
     using DeltaRef = std::pair<
         shamapitem_ptr,
         shamapitem_ptr>;
@@ -747,6 +747,22 @@ SHAMap::end() const
 {
     return const_iterator(this, nullptr);
 }
+
+template <class T>
+struct ClearStack
+{
+    T& t_;
+
+    ClearStack(T& t) : t_(t)
+    {
+        t_.clear();
+    }
+
+    ~ClearStack()
+    {
+        t_.clear();
+    }
+};
 
 }  // namespace ripple
 

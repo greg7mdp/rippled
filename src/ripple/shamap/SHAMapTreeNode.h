@@ -80,7 +80,7 @@ auto make_shamapnode(Args&&... args)
 
 #endif
 
-    using shamaptreenode_ptr = shamapnode_ptr<SHAMapTreeNode>;
+using shamaptreenode_ptr = shamapnode_ptr<SHAMapTreeNode>;
     
 class SHAMapTreeNode : public boost::intrusive_ref_counter<SHAMapTreeNode> 
 {

@@ -110,9 +110,9 @@ SHAMap::dirtyUp(
     while (!stack.empty())
     {
         auto node =
-            boost::dynamic_pointer_cast<SHAMapInnerNode>(stack.top().first);
-        SHAMapNodeID nodeID = stack.top().second;
-        stack.pop();
+            boost::dynamic_pointer_cast<SHAMapInnerNode>(stack.back().first);
+        SHAMapNodeID nodeID = stack.back().second;
+        stack.pop_back();
         assert(node != nullptr);
 
         int branch = selectBranch(nodeID, target);
@@ -135,7 +135,7 @@ SHAMap::walkTowardsKey(uint256 const& id, SharedPtrNodeStack* stack) const
     while (inNode->isInner())
     {
         if (stack != nullptr)
-            stack->push({inNode, nodeID});
+            stack->emplace_back(inNode, nodeID);
 
         auto const inner = boost::static_pointer_cast<SHAMapInnerNode>(inNode);
         auto const branch = selectBranch(nodeID, id);
@@ -147,7 +147,7 @@ SHAMap::walkTowardsKey(uint256 const& id, SharedPtrNodeStack* stack) const
     }
 
     if (stack != nullptr)
-        stack->push({inNode, nodeID});
+        stack->emplace_back(inNode, nodeID);
     return static_cast<SHAMapLeafNode*>(inNode.get());
 }
 
@@ -449,14 +449,14 @@ SHAMap::belowHelper(
     if (node->isLeaf())
     {
         auto n = boost::static_pointer_cast<SHAMapLeafNode>(node);
-        stack.push({node, {leafDepth, n->peekItem()->key()}});
+        stack.emplace_back(node, SHAMapNodeID{leafDepth, n->peekItem()->key()});
         return n.get();
     }
     auto inner = boost::static_pointer_cast<SHAMapInnerNode>(node);
     if (stack.empty())
-        stack.push({inner, SHAMapNodeID{}});
+        stack.emplace_back(inner, SHAMapNodeID{});
     else
-        stack.push({inner, stack.top().second.getChildNodeID(branch)});
+        stack.emplace_back(inner, stack.back().second.getChildNodeID(branch));
     for (int i = init; cmp(i);)
     {
         if (!inner->isEmptyBranch(i))
@@ -466,11 +466,11 @@ SHAMap::belowHelper(
             if (node->isLeaf())
             {
                 auto n = boost::static_pointer_cast<SHAMapLeafNode>(node);
-                stack.push({n, {leafDepth, n->peekItem()->key()}});
+                stack.emplace_back(n, SHAMapNodeID{leafDepth, n->peekItem()->key()});
                 return n.get();
             }
             inner = boost::static_pointer_cast<SHAMapInnerNode>(node);
-            stack.push({inner, stack.top().second.getChildNodeID(branch)});
+            stack.emplace_back(inner, stack.back().second.getChildNodeID(branch));
             i = init;  // descend and reset loop
         }
         else
@@ -548,7 +548,7 @@ SHAMap::peekFirstItem(SharedPtrNodeStack& stack) const
     if (!node)
     {
         while (!stack.empty())
-            stack.pop();
+            stack.pop_back();
         return nullptr;
     }
     return node;
@@ -558,11 +558,11 @@ SHAMapLeafNode const*
 SHAMap::peekNextItem(uint256 const& id, SharedPtrNodeStack& stack) const
 {
     assert(!stack.empty());
-    assert(stack.top().first->isLeaf());
-    stack.pop();
+    assert(stack.back().first->isLeaf());
+    stack.pop_back();
     while (!stack.empty())
     {
-        auto [node, nodeID] = stack.top();
+        auto [node, nodeID] = stack.back();
         assert(!node->isLeaf());
         auto inner = boost::static_pointer_cast<SHAMapInnerNode>(node);
         for (auto i = selectBranch(nodeID, id) + 1; i < branchFactor; ++i)
@@ -577,7 +577,7 @@ SHAMap::peekNextItem(uint256 const& id, SharedPtrNodeStack& stack) const
                 return leaf;
             }
         }
-        stack.pop();
+        stack.pop_back();
     }
     // must be last item
     return nullptr;
@@ -609,11 +609,13 @@ SHAMap::peekItem(uint256 const& id, SHAMapHash& hash) const
 SHAMap::const_iterator
 SHAMap::upper_bound(uint256 const& id) const
 {
-    SharedPtrNodeStack stack;
+    thread_local SharedPtrNodeStack stack;
+    ClearStack cs(stack);
+    
     walkTowardsKey(id, &stack);
     while (!stack.empty())
     {
-        auto [node, nodeID] = stack.top();
+        auto [node, nodeID] = stack.back();
         if (node->isLeaf())
         {
             auto leaf = static_cast<SHAMapLeafNode*>(node.get());
@@ -639,18 +641,20 @@ SHAMap::upper_bound(uint256 const& id) const
                 }
             }
         }
-        stack.pop();
+        stack.pop_back();
     }
     return end();
 }
 SHAMap::const_iterator
 SHAMap::lower_bound(uint256 const& id) const
 {
-    SharedPtrNodeStack stack;
+    thread_local SharedPtrNodeStack stack;
+    ClearStack cs(stack);
+    
     walkTowardsKey(id, &stack);
     while (!stack.empty())
     {
-        auto [node, nodeID] = stack.top();
+        auto [node, nodeID] = stack.back();
         if (node->isLeaf())
         {
             auto leaf = static_cast<SHAMapLeafNode*>(node.get());
@@ -675,7 +679,7 @@ SHAMap::lower_bound(uint256 const& id) const
                 }
             }
         }
-        stack.pop();
+        stack.pop_back();
     }
     // TODO: what to return here?
     return end();
@@ -693,14 +697,16 @@ SHAMap::delItem(uint256 const& id)
     // delete the item with this ID
     assert(state_ != SHAMapState::Immutable);
 
-    SharedPtrNodeStack stack;
+    thread_local SharedPtrNodeStack stack;
+    ClearStack cs(stack);
+    
     walkTowardsKey(id, &stack);
 
     if (stack.empty())
         Throw<SHAMapMissingNode>(type_, id);
 
-    auto leaf = boost::dynamic_pointer_cast<SHAMapLeafNode>(stack.top().first);
-    stack.pop();
+    auto leaf = boost::dynamic_pointer_cast<SHAMapLeafNode>(stack.back().first);
+    stack.pop_back();
 
     if (!leaf || (leaf->peekItem()->key() != id))
         return false;
@@ -714,9 +720,9 @@ SHAMap::delItem(uint256 const& id)
     while (!stack.empty())
     {
         auto node =
-            boost::static_pointer_cast<SHAMapInnerNode>(stack.top().first);
-        SHAMapNodeID nodeID = stack.top().second;
-        stack.pop();
+            boost::static_pointer_cast<SHAMapInnerNode>(stack.back().first);
+        SHAMapNodeID nodeID = stack.back().second;
+        stack.pop_back();
 
         node = unshareNode(std::move(node), nodeID);
         node->setChild(selectBranch(nodeID, id), prevNode);
@@ -776,14 +782,16 @@ SHAMap::addGiveItem(
     // add the specified item, does not update
     uint256 tag = item->key();
 
-    SharedPtrNodeStack stack;
+    thread_local SharedPtrNodeStack stack;
+    ClearStack cs(stack);
+    
     walkTowardsKey(tag, &stack);
 
     if (stack.empty())
         Throw<SHAMapMissingNode>(type_, tag);
 
-    auto [node, nodeID] = stack.top();
-    stack.pop();
+    auto [node, nodeID] = stack.back();
+    stack.pop_back();
 
     if (node->isLeaf())
     {
@@ -816,7 +824,7 @@ SHAMap::addGiveItem(
         while ((b1 = selectBranch(nodeID, tag)) ==
                (b2 = selectBranch(nodeID, otherItem->key())))
         {
-            stack.push({node, nodeID});
+            stack.emplace_back(node, nodeID);
 
             // we need a new inner node, since both go on same branch at this
             // level
@@ -866,15 +874,17 @@ SHAMap::updateGiveItem(
 
     assert(state_ != SHAMapState::Immutable);
 
-    SharedPtrNodeStack stack;
+    thread_local SharedPtrNodeStack stack;
+    ClearStack cs(stack);
+    
     walkTowardsKey(tag, &stack);
 
     if (stack.empty())
         Throw<SHAMapMissingNode>(type_, tag);
 
-    auto node = boost::dynamic_pointer_cast<SHAMapLeafNode>(stack.top().first);
-    auto nodeID = stack.top().second;
-    stack.pop();
+    auto node = boost::dynamic_pointer_cast<SHAMapLeafNode>(stack.back().first);
+    auto nodeID = stack.back().second;
+    stack.pop_back();
 
     if (!node || (node->peekItem()->key() != tag))
     {
@@ -1024,7 +1034,8 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
     // Stack of {parent,index,child} pointers representing
     // inner nodes we are in the process of flushing
     using StackEntry = std::pair<shamapnode_ptr<SHAMapInnerNode>, int>;
-    std::stack<StackEntry, std::vector<StackEntry>> stack;
+    thread_local std::vector<StackEntry> stack;
+    ClearStack cs(stack);
 
     node = preFlushNode(std::move(node));
 
@@ -1056,7 +1067,7 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
                     {
                         // save our place and work on this node
 
-                        stack.emplace(std::move(node), branch);
+                        stack.emplace_back(std::move(node), branch);
                         // The semantics of this changes when we move to c++-20
                         // Right now no move will occur; With c++-20 child will
                         // be moved from.
@@ -1097,9 +1108,9 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
         if (stack.empty())
             break;
 
-        auto parent = std::move(stack.top().first);
-        pos = stack.top().second;
-        stack.pop();
+        auto parent = std::move(stack.back().first);
+        pos = stack.back().second;
+        stack.pop_back();
 
         // Hook this inner node to its parent
         assert(parent->cowid() == cowid_);
@@ -1122,13 +1133,15 @@ SHAMap::dump(bool hash) const
     int leafCount = 0;
     JLOG(journal_.info()) << " MAP Contains";
 
-    std::stack<std::pair<SHAMapTreeNode*, SHAMapNodeID>> stack;
-    stack.push({root_.get(), SHAMapNodeID()});
+    thread_local std::vector<std::pair<SHAMapTreeNode*, SHAMapNodeID>> stack;
+    ClearStack cs(stack);
+    
+    stack.emplace_back(root_.get(), SHAMapNodeID());
 
     do
     {
-        auto [node, nodeID] = stack.top();
-        stack.pop();
+        auto [node, nodeID] = stack.back();
+        stack.pop_back();
 
         JLOG(journal_.info()) << node->getString(nodeID);
         if (hash)
@@ -1147,7 +1160,7 @@ SHAMap::dump(bool hash) const
                     if (child)
                     {
                         assert(child->getHash() == inner->getChildHash(i));
-                        stack.push({child, nodeID.getChildNodeID(i)});
+                        stack.emplace_back(child, nodeID.getChildNodeID(i));
                     }
                 }
             }
@@ -1187,7 +1200,9 @@ SHAMap::invariants() const
     auto node = root_.get();
     assert(node != nullptr);
     assert(!node->isLeaf());
-    SharedPtrNodeStack stack;
+    thread_local SharedPtrNodeStack stack;
+    ClearStack cs(stack);
+    
     for (auto leaf = peekFirstItem(stack); leaf != nullptr;
          leaf = peekNextItem(leaf->peekItem()->key(), stack))
         ;

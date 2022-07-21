@@ -47,8 +47,9 @@ SHAMap::visitNodes(std::function<bool(SHAMapTreeNode&)> const& function) const
         return;
 
     using StackEntry = std::pair<int, shamapnode_ptr<SHAMapInnerNode>>;
-    std::stack<StackEntry, std::vector<StackEntry>> stack;
-
+    thread_local std::vector<StackEntry> stack;
+    ClearStack cs(stack);
+    
     auto node = boost::static_pointer_cast<SHAMapInnerNode>(root_);
     int pos = 0;
 
@@ -74,7 +75,7 @@ SHAMap::visitNodes(std::function<bool(SHAMapTreeNode&)> const& function) const
                     if (pos != 15)
                     {
                         // save next position to resume at
-                        stack.push(std::make_pair(pos + 1, std::move(node)));
+                        stack.emplace_back(pos + 1, std::move(node));
                     }
 
                     // descend to the child's first position
@@ -91,8 +92,8 @@ SHAMap::visitNodes(std::function<bool(SHAMapTreeNode&)> const& function) const
         if (stack.empty())
             break;
 
-        std::tie(pos, node) = stack.top();
-        stack.pop();
+        std::tie(pos, node) = stack.back();
+        stack.pop_back();
     }
 }
 
@@ -122,14 +123,15 @@ SHAMap::visitDifferences(
     }
     // contains unexplored non-matching inner node entries
     using StackEntry = std::pair<SHAMapInnerNode*, SHAMapNodeID>;
-    std::stack<StackEntry, std::vector<StackEntry>> stack;
+    thread_local std::vector<StackEntry> stack;
+    ClearStack cs(stack);
 
-    stack.push({static_cast<SHAMapInnerNode*>(root_.get()), SHAMapNodeID{}});
+    stack.emplace_back(static_cast<SHAMapInnerNode*>(root_.get()), SHAMapNodeID{});
 
     while (!stack.empty())
     {
-        auto const [node, nodeID] = stack.top();
-        stack.pop();
+        auto const [node, nodeID] = stack.back();
+        stack.pop_back();
 
         // 1) Add this node to the pack
         if (!function(*node))
@@ -147,8 +149,8 @@ SHAMap::visitDifferences(
                 if (next->isInner())
                 {
                     if (!have || !have->hasInnerNode(childID, childHash))
-                        stack.push(
-                            {static_cast<SHAMapInnerNode*>(next), childID});
+                        stack.emplace_back(
+                            static_cast<SHAMapInnerNode*>(next), childID);
                 }
                 else if (
                     !have ||
@@ -460,15 +462,18 @@ SHAMap::getNodeFat(
         return false;
     }
 
-    std::stack<std::tuple<SHAMapTreeNode*, SHAMapNodeID, int>> stack;
-    stack.emplace(node, nodeID, depth);
+    thread_local std::vector<std::tuple<SHAMapTreeNode*, SHAMapNodeID, int>>
+        stack;
+    ClearStack cs(stack);
+    
+    stack.emplace_back(node, nodeID, depth);
 
     Serializer s(8192);
 
     while (!stack.empty())
     {
-        std::tie(node, nodeID, depth) = stack.top();
-        stack.pop();
+        std::tie(node, nodeID, depth) = stack.back();
+        stack.pop_back();
 
         // Add this node to the reply
         s.erase();
@@ -496,7 +501,7 @@ SHAMap::getNodeFat(
                         {
                             // If there's more than one child, reduce the depth
                             // If only one child, follow the chain
-                            stack.emplace(
+                            stack.emplace_back(
                                 childNode,
                                 childID,
                                 (bc > 1) ? (depth - 1) : depth);
@@ -667,14 +672,15 @@ bool
 SHAMap::deepCompare(SHAMap& other) const
 {
     // Intended for debug/test only
-    std::stack<std::pair<SHAMapTreeNode*, SHAMapTreeNode*>> stack;
+    thread_local std::vector<std::pair<SHAMapTreeNode*, SHAMapTreeNode*>> stack;
+    ClearStack cs(stack);
 
-    stack.push({root_.get(), other.root_.get()});
+    stack.push_back({root_.get(), other.root_.get()});
 
     while (!stack.empty())
     {
-        auto const [node, otherNode] = stack.top();
-        stack.pop();
+        auto const [node, otherNode] = stack.back();
+        stack.pop_back();
 
         if (!node || !otherNode)
         {
@@ -724,7 +730,7 @@ SHAMap::deepCompare(SHAMap& other) const
                         JLOG(journal_.warn()) << "unable to fetch inner node";
                         return false;
                     }
-                    stack.push({next, otherNext});
+                    stack.push_back({next, otherNext});
                 }
             }
         }
@@ -790,7 +796,9 @@ SHAMap::hasLeafNode(uint256 const& tag, SHAMapHash const& targetNodeHash) const
 std::optional<std::vector<Blob>>
 SHAMap::getProofPath(uint256 const& key) const
 {
-    SharedPtrNodeStack stack;
+    thread_local SharedPtrNodeStack stack;
+    ClearStack cs(stack);
+    
     walkTowardsKey(key, &stack);
 
     if (stack.empty())
@@ -799,7 +807,7 @@ SHAMap::getProofPath(uint256 const& key) const
         return {};
     }
 
-    if (auto const& node = stack.top().first; !node || node->isInner() ||
+    if (auto const& node = stack.back().first; !node || node->isInner() ||
         boost::static_pointer_cast<SHAMapLeafNode>(node)->peekItem()->key() !=
             key)
     {
@@ -812,9 +820,9 @@ SHAMap::getProofPath(uint256 const& key) const
     while (!stack.empty())
     {
         Serializer s;
-        stack.top().first->serializeForWire(s);
+        stack.back().first->serializeForWire(s);
         path.emplace_back(std::move(s.modData()));
-        stack.pop();
+        stack.pop_back();
     }
 
     JLOG(journal_.debug()) << "getPath for key " << key << ", path length "
