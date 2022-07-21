@@ -147,7 +147,7 @@ public:
     getChildHash(int m) const;
 
     void
-    setChild(int m, shamaptreenode_ptr const& child);
+    setChild(int m, shamaptreenode_ptr child);
 
     void
     shareChild(int m, shamaptreenode_ptr const& child);
