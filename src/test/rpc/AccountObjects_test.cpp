@@ -22,6 +22,7 @@
 #include <ripple/json/to_string.h>
 #include <ripple/protocol/jss.h>
 #include <test/jtx.h>
+#include <test/jtx/sidechain.h>
 
 #include <boost/utility/string_ref.hpp>
 
@@ -333,6 +334,53 @@ public:
         }
     }
 
+    auto
+    createSidechainObjects(test::jtx::Env& env)
+    {
+        using namespace test::jtx;
+        Account const locking_account{"locking_account"};
+        Account const issuing_account{"issuing_account"};
+        Account const andrea{"Andrea"};
+        Account const bob{"Bob"};
+        auto locking_funds{XRP(10001)};
+        auto issuing_funds{XRP(10001)};
+        env.fund(locking_funds, locking_account);
+        env.fund(issuing_funds, issuing_account);
+        env.fund(issuing_funds, andrea);
+        env.fund(issuing_funds, bob);
+
+        std::vector<signer> const signers = [] {
+            constexpr int numSigners = 5;
+            std::vector<signer> result;
+            result.reserve(numSigners);
+            for (int i = 0; i < numSigners; ++i)
+            {
+                using namespace std::literals;
+                result.emplace_back("signer_"s + std::to_string(i));
+            }
+            return result;
+        }();
+
+        std::uint32_t const quorum = signers.size() - 1;
+        Json::Value sidechain_def =
+            sidechain(locking_account, xrpIssue(), issuing_account, xrpIssue());
+
+        env(sidechain_create(locking_account, sidechain_def, quorum, signers));
+        env.close();
+
+        env(sidechain_xchain_seq_num_create(andrea, sidechain_def));
+        env(sidechain_xchain_seq_num_create(bob, sidechain_def));
+
+        return std::make_tuple(
+            locking_account,
+            issuing_account,
+            andrea,
+            bob,
+            signers,
+            quorum,
+            sidechain_def);
+    }
+
     void
     testObjectTypes()
     {
@@ -346,7 +394,9 @@ public:
         Account const gw{"gateway"};
         auto const USD = gw["USD"];
 
-        Env env(*this);
+        auto const features =
+            supported_amendments() | FeatureBitset{featureSidechains};
+        Env env(*this, features);
 
         // Make a lambda we can use to get "account_objects" easily.
         auto acct_objs = [&env](Account const& acct, char const* type) {
@@ -444,6 +494,38 @@ public:
             BEAST_EXPECT(escrow[sfAccount.jsonName] == gw.human());
             BEAST_EXPECT(escrow[sfDestination.jsonName] == gw.human());
             BEAST_EXPECT(escrow[sfAmount.jsonName].asUInt() == 100'000'000);
+        }
+
+        // Andrea and Bob create a xchain sequence number that we can look for
+        // in the ledger.
+        auto
+            [locking_account,
+             issuing_account,
+             andrea,
+             bob,
+             sidechain_signers,
+             quorum,
+             sidechain_def] = createSidechainObjects(env);
+        env.close();
+        {
+            // Find the xchain sequence number for Andrea.
+            Json::Value const resp = acct_objs(andrea, jss::xchain_seq);
+            BEAST_EXPECT(acct_objs_is_size(resp, 1));
+
+            auto const& xchain_seq =
+                resp[jss::result][jss::account_objects][0u];
+            BEAST_EXPECT(xchain_seq[sfAccount.jsonName] == andrea.human());
+            BEAST_EXPECT(xchain_seq["XChainSequence"].asUInt() == 1);
+        }
+        {
+            // and the one for Bob
+            Json::Value const resp = acct_objs(bob, jss::xchain_seq);
+            BEAST_EXPECT(acct_objs_is_size(resp, 1));
+
+            auto const& xchain_seq =
+                resp[jss::result][jss::account_objects][0u];
+            BEAST_EXPECT(xchain_seq[sfAccount.jsonName] == bob.human());
+            BEAST_EXPECT(xchain_seq["XChainSequence"].asUInt() == 2);
         }
         // gw creates an offer that we can look for in the ledger.
         env(offer(gw, USD(7), XRP(14)));
