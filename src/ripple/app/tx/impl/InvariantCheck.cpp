@@ -25,6 +25,7 @@
 #include <ripple/protocol/STArray.h>
 #include <ripple/protocol/SystemParameters.h>
 #include <ripple/protocol/nftPageMask.h>
+#include "ripple/protocol/TxFormats.h"
 
 namespace ripple {
 
@@ -462,6 +463,10 @@ ValidNewAccountRoot::finalize(
     ReadView const& view,
     beast::Journal const& j)
 {
+    // TODO: At least check the starting sequence of the created accounts
+    if (tx.getTxnType() == ttXCHAIN_ADD_ATTESTATION && result == tesSUCCESS)
+        return true;
+
     if (accountsCreated_ == 0)
         return true;
 
