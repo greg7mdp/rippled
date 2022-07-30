@@ -997,11 +997,15 @@ if (tests)
 endif () #tests
 
 target_link_libraries (rippled
+PRIVATE
+  gtl
+PUBLIC
   Ripple::boost
   Ripple::opts
   Ripple::libs
   Ripple::xrpl_core
   )
+
 exclude_if_included (rippled)
 # define a macro for tests that might need to
 # be exluded or run differently in CI environment
