@@ -56,6 +56,8 @@ enum class SHAMapNodeType {
 
 class SHAMapTreeNode;
 
+#define SHAMAP_INTR_PTR 1
+
 #ifndef SHAMAP_INTR_PTR
 
 template<class T>
