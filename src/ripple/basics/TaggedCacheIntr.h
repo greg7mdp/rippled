@@ -37,7 +37,7 @@
 #include <thread>
 #include <type_traits>
 #include <vector>
-#include <gtl/phmap.hpp>
+//#include <gtl/phmap.hpp>
 
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
@@ -208,12 +208,6 @@ public:
     void
     sweep()
     {
-        // Keep references to all the stuff we sweep
-        // For performance, each worker thread should exit before the swept data
-        // is destroyed but still within the main cache lock.
-        std::vector<std::vector<boost::intrusive_ptr<mapped_type>>> allStuffToSweep(
-            m_cache.partitions());
-
         clock_type::time_point const now(m_clock.now());
         clock_type::time_point when_expire;
 
@@ -244,25 +238,26 @@ public:
 
             std::vector<std::thread> workers;
             workers.reserve(m_cache.partitions());
-            std::atomic<int> allRemovals = 0;
-
-            for (std::size_t p = 0; p < m_cache.partitions(); ++p)
+            for (size_t pass = 0; pass < 4; ++pass)
             {
-                workers.push_back(sweepHelper(
-                    when_expire,
-                    now,
-                    m_cache.map()[p],
-                    allStuffToSweep[p],
-                    allRemovals,
-                    lock));
-            }
-            for (std::thread& worker : workers)
-                worker.join();
+                workers.clear();
+                std::atomic<int> allRemovals = 0;
 
-            m_cache_count -= allRemovals;
+                for (std::size_t p = 0; p < m_cache.partitions(); ++p)
+                {
+                    workers.push_back(sweepHelper(
+                        when_expire,
+                        now,
+                        m_cache.map()[p],
+                        allRemovals,
+                        lock));
+                }
+                for (std::thread& worker : workers)
+                    worker.join();
+
+                m_cache_count -= allRemovals;
+            }
         }
-        // At this point allStuffToSweep will go out of scope outside the lock
-        // and decrement the reference count on each strong pointer.
         JLOG(m_journal.debug())
             << m_name << " TaggedCache sweep lock duration "
             << std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -682,7 +677,6 @@ private:
         clock_type::time_point const& when_expire,
         [[maybe_unused]] clock_type::time_point const& now,
         typename KeyValueCacheType::map_type& partition,
-        std::vector<boost::intrusive_ptr<mapped_type>>& stuffToSweep,
         std::atomic<int>& allRemovals,
         std::lock_guard<std::recursive_mutex> const& lock)
     {
@@ -692,7 +686,6 @@ private:
 
             // Keep references to all the stuff we sweep
             // so that we can destroy them outside the lock.
-            stuffToSweep.reserve(partition.size());
             {
                 auto cit = partition.begin();
                 while (cit != partition.end())
@@ -704,7 +697,6 @@ private:
                         {
                             // no outside references exist
                             ++mapRemovals;
-                            stuffToSweep.push_back(std::move(cit->second.cachedPtr()));
                             cit = partition.erase(cit);
                         }
                         else
@@ -720,7 +712,6 @@ private:
                         {
                             // but no outside references exist
                             ++mapRemovals;
-                            stuffToSweep.push_back(std::move(cit->second.cachedPtr()));
                             cit = partition.erase(cit);
                         }
                         else
@@ -755,7 +746,6 @@ private:
         clock_type::time_point const& when_expire,
         clock_type::time_point const& now,
         typename KeyOnlyCacheType::map_type& partition,
-        std::vector<boost::intrusive_ptr<mapped_type>>& stuffToSweep,
         std::atomic<int>& allRemovals,
         std::lock_guard<std::recursive_mutex> const& lock)
     {
@@ -763,9 +753,6 @@ private:
             int cacheRemovals = 0;
             int mapRemovals = 0;
 
-            // Keep references to all the stuff we sweep
-            // so that we can destroy them outside the lock.
-            stuffToSweep.reserve(partition.size());
             {
                 auto cit = partition.begin();
                 while (cit != partition.end())
