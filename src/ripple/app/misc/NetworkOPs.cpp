@@ -919,7 +919,10 @@ void
 NetworkOPsImp::setStateTimer()
 {
     setHeartbeatTimer();
-    setClusterTimer();
+
+    // Only do this work if a cluster is configured
+    if (app_.cluster().size() != 0)
+        setClusterTimer();
 }
 
 void
@@ -972,6 +975,7 @@ void
 NetworkOPsImp::setClusterTimer()
 {
     using namespace std::chrono_literals;
+
     setTimer(
         clusterTimer_,
         10s,
@@ -1057,7 +1061,11 @@ NetworkOPsImp::processHeartbeatTimer()
 void
 NetworkOPsImp::processClusterTimer()
 {
+    if (app_.cluster().size() == 0)
+        return;
+
     using namespace std::chrono_literals;
+
     bool const update = app_.cluster().update(
         app_.nodeIdentity().first,
         "",
@@ -2323,10 +2331,6 @@ NetworkOPsImp::getServerInfo(bool human, bool admin, bool counters)
     if (!app_.config().SERVER_DOMAIN.empty())
         info[jss::server_domain] = app_.config().SERVER_DOMAIN;
 
-    if (!app_.config().reporting())
-        if (auto const netid = app_.overlay().networkID())
-            info[jss::network_id] = static_cast<Json::UInt>(*netid);
-
     info[jss::build_version] = BuildInfo::getVersionString();
 
     info[jss::server_state] = strOperatingMode(admin);
@@ -2469,6 +2473,9 @@ NetworkOPsImp::getServerInfo(bool human, bool admin, bool counters)
 
     if (!app_.config().reporting())
     {
+        if (auto const netid = app_.overlay().networkID())
+            info[jss::network_id] = static_cast<Json::UInt>(*netid);
+
         auto const escalationMetrics =
             app_.getTxQ().getMetrics(*app_.openLedger().current());
 
