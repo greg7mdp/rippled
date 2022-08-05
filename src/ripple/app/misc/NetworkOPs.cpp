@@ -3199,7 +3199,7 @@ NetworkOPsImp::pubAccountTransaction(
 
         if (last)
             jvObj[jss::account_history_ledger_boundary] = true;
-        
+
         for (InfoSub::ref isrListener : notify)
             isrListener->send(jvObj, true);
 

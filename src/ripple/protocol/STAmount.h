@@ -373,8 +373,7 @@ inline STAmount::operator bool() const noexcept
     return *this != beast::zero;
 }
 
-inline STAmount&
-STAmount::operator=(beast::Zero)
+inline STAmount& STAmount::operator=(beast::Zero)
 {
     clear();
     return *this;
