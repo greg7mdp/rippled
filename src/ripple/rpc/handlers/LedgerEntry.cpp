@@ -360,30 +360,30 @@ doLedgerEntry(RPC::JsonContext& context)
             }
         }
         else if (
-            !bridge.isObject() || !bridge.isMember(jss::IssuingChainDoor) ||
-            !bridge.isMember(jss::IssuingChainIssue) ||
-            !bridge.isMember(jss::LockingChainDoor) ||
-            !bridge.isMember(jss::LockingChainIssue))
+            !bridge.isObject() || !bridge.isMember(jss::issuing_chain_door) ||
+            !bridge.isMember(jss::issuing_chain_issue) ||
+            !bridge.isMember(jss::locking_chain_door) ||
+            !bridge.isMember(jss::locking_chain_issue))
         {
             jvResult[jss::error] = "malformedRequest";
         }
         else
         {
             // if not specified with a node id, a bridge is specified by
-            // four strings (LockingChainDoor, LockingChainIssue,
-            // IssuingChainDoor, IssuingChainIssue)
+            // four strings (locking_chain_door, locking_chain_issue,
+            // issuing_chain_door, issuing_chain_issue)
             auto lcd = parseBase58<AccountID>(
-                bridge[jss::LockingChainDoor].asString());
+                bridge[jss::locking_chain_door].asString());
             auto icd = parseBase58<AccountID>(
-                bridge[jss::IssuingChainDoor].asString());
+                bridge[jss::issuing_chain_door].asString());
             Issue lci, ici;
             bool valid = lcd && icd;
             if (valid)
             {
                 try
                 {
-                    lci = issueFromJson(bridge[jss::LockingChainIssue]);
-                    ici = issueFromJson(bridge[jss::IssuingChainIssue]);
+                    lci = issueFromJson(bridge[jss::locking_chain_issue]);
+                    ici = issueFromJson(bridge[jss::issuing_chain_issue]);
                 }
                 catch (std::runtime_error const& ex)
                 {
@@ -409,32 +409,33 @@ doLedgerEntry(RPC::JsonContext& context)
             }
         }
         else if (
-            !claim_id.isObject() || !claim_id.isMember(jss::IssuingChainDoor) ||
-            !claim_id.isMember(jss::IssuingChainIssue) ||
-            !claim_id.isMember(jss::LockingChainDoor) ||
-            !claim_id.isMember(jss::LockingChainIssue) ||
-            !claim_id.isMember(jss::XChainClaimID))
+            !claim_id.isObject() ||
+            !claim_id.isMember(jss::issuing_chain_door) ||
+            !claim_id.isMember(jss::issuing_chain_issue) ||
+            !claim_id.isMember(jss::locking_chain_door) ||
+            !claim_id.isMember(jss::locking_chain_issue) ||
+            !claim_id.isMember(jss::xchain_claim_id))
         {
             jvResult[jss::error] = "malformedRequest";
         }
         else
         {
             // if not specified with a node id, a claim_id is specified by
-            // four strings defining the bridge (LockingChainDoor,
-            // LockingChainIssue, IssuingChainDoor, IssuingChainIssue) and the
-            // claim id sequence number.
+            // four strings defining the bridge (locking_chain_door,
+            // locking_chain_issue, issuing_chain_door, issuing_chain_issue) and
+            // the claim id sequence number.
             auto lcd = parseBase58<AccountID>(
-                claim_id[jss::LockingChainDoor].asString());
+                claim_id[jss::locking_chain_door].asString());
             auto icd = parseBase58<AccountID>(
-                claim_id[jss::IssuingChainDoor].asString());
+                claim_id[jss::issuing_chain_door].asString());
             Issue lci, ici;
             bool valid = lcd && icd;
             if (valid)
             {
                 try
                 {
-                    lci = issueFromJson(claim_id[jss::LockingChainIssue]);
-                    ici = issueFromJson(claim_id[jss::IssuingChainIssue]);
+                    lci = issueFromJson(claim_id[jss::locking_chain_issue]);
+                    ici = issueFromJson(claim_id[jss::issuing_chain_issue]);
                 }
                 catch (std::runtime_error const& ex)
                 {
@@ -442,9 +443,9 @@ doLedgerEntry(RPC::JsonContext& context)
                 }
             }
 
-            if (valid && claim_id[jss::XChainClaimID].isIntegral())
+            if (valid && claim_id[jss::xchain_claim_id].isIntegral())
             {
-                auto seq = claim_id[jss::XChainClaimID].asUInt();
+                auto seq = claim_id[jss::xchain_claim_id].asUInt();
 
                 STXChainBridge bridge_spec(*lcd, lci, *icd, ici);
                 Keylet keylet = keylet::xChainClaimID(bridge_spec, seq);
@@ -468,32 +469,34 @@ doLedgerEntry(RPC::JsonContext& context)
             }
         }
         else if (
-            !claim_id.isObject() || !claim_id.isMember(jss::IssuingChainDoor) ||
-            !claim_id.isMember(jss::IssuingChainIssue) ||
-            !claim_id.isMember(jss::LockingChainDoor) ||
-            !claim_id.isMember(jss::LockingChainIssue) ||
-            !claim_id.isMember(jss::XChainCreateAccountClaimID))
+            !claim_id.isObject() ||
+            !claim_id.isMember(jss::issuing_chain_door) ||
+            !claim_id.isMember(jss::issuing_chain_issue) ||
+            !claim_id.isMember(jss::locking_chain_door) ||
+            !claim_id.isMember(jss::locking_chain_issue) ||
+            !claim_id.isMember(jss::xchain_create_account_claim_id))
         {
             jvResult[jss::error] = "malformedRequest";
         }
         else
         {
             // if not specified with a node id, a create account claim_id is
-            // specified by four strings defining the bridge (LockingChainDoor,
-            // LockingChainIssue, IssuingChainDoor, IssuingChainIssue) and the
-            // create account claim id sequence number.
+            // specified by four strings defining the bridge
+            // (locking_chain_door, locking_chain_issue, issuing_chain_door,
+            // issuing_chain_issue) and the create account claim id sequence
+            // number.
             auto lcd = parseBase58<AccountID>(
-                claim_id[jss::LockingChainDoor].asString());
+                claim_id[jss::locking_chain_door].asString());
             auto icd = parseBase58<AccountID>(
-                claim_id[jss::IssuingChainDoor].asString());
+                claim_id[jss::issuing_chain_door].asString());
             Issue lci, ici;
             bool valid = lcd && icd;
             if (valid)
             {
                 try
                 {
-                    lci = issueFromJson(claim_id[jss::LockingChainIssue]);
-                    ici = issueFromJson(claim_id[jss::IssuingChainIssue]);
+                    lci = issueFromJson(claim_id[jss::locking_chain_issue]);
+                    ici = issueFromJson(claim_id[jss::issuing_chain_issue]);
                 }
                 catch (std::runtime_error const& ex)
                 {
@@ -501,9 +504,11 @@ doLedgerEntry(RPC::JsonContext& context)
                 }
             }
 
-            if (valid && claim_id[jss::XChainCreateAccountClaimID].isIntegral())
+            if (valid &&
+                claim_id[jss::xchain_create_account_claim_id].isIntegral())
             {
-                auto seq = claim_id[jss::XChainCreateAccountClaimID].asUInt();
+                auto seq =
+                    claim_id[jss::xchain_create_account_claim_id].asUInt();
 
                 STXChainBridge bridge_spec(*lcd, lci, *icd, ici);
                 Keylet keylet =
