@@ -73,6 +73,7 @@ struct xEnv : public jtx::XChainBridgeObjects
             // Signer's list must match the attestation signers
             // env_(jtx::signers(Account::master, signers.size(), signers));
         }
+        env_.close();
     }
 
     xEnv&
@@ -896,9 +897,7 @@ struct XChain_test : public beast::unit_test::suite,
             .tx(xchain_commit(mcAlice, jvb_USD, 1, mcUSD(1), scGw),
                 ter(terNO_LINE));
 
-#if 0
         // commit sent from mcAlice which has a IOU balance => should succeed
-        // Why does it fail? <todo>
         xEnv(*this)
             .tx(trust(mcDoor, mcUSD(10000)))
             .tx(trust(mcAlice, mcUSD(10000)))
@@ -906,10 +905,8 @@ struct XChain_test : public beast::unit_test::suite,
             .tx(pay(mcGw, mcAlice, mcUSD(10)))
             .tx(create_bridge(mcDoor, jvb_USD))
             .close()
-            .tx(pay(mcAlice, mcDoor, mcUSD(10)));
-        //.tx(xchain_commit(mcAlice, jvb_USD, 1, mcUSD(10), scAlice),
-        //    ter(terNO_RIPPLE));
-#endif
+            //.tx(pay(mcAlice, mcDoor, mcUSD(10)));
+            .tx(xchain_commit(mcAlice, jvb_USD, 1, mcUSD(10), scAlice));
     }
 
     void
